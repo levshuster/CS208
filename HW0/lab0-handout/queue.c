@@ -10,7 +10,7 @@
  * It uses a singly-linked list to represent the set of queue elements
  */
 
-#include <stdlib.h>
+#include <stdlib.h>1
 #include <stdio.h>
 #include <string.h>
 
@@ -25,6 +25,9 @@ queue_t *q_new()
 {
     queue_t *q =  malloc(sizeof(queue_t));
     // TODO check if malloc returned NULL (this means space could not be allocated)
+    if(q ==  NULL){
+      return NULL;
+    {}
     q->head = NULL;
     return q;
 }
@@ -33,12 +36,14 @@ queue_t *q_new()
 void q_free(queue_t *q)
 {
     // What if q is NULL?
-
+    if(q == NULL){
+      return;
+    }
     // TODO free the queue nodes
     /* You'll want to loop through the list nodes until the next pointer is NULL,
      * starting at the head, freeing each node and its string. 
      * Account for an empty list (head is NULL). */
-
+    q_free(q->head);
     // Freeing queue structure itself
     free(q);
 }
