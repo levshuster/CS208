@@ -10,7 +10,7 @@
  * It uses a singly-linked list to represent the set of queue elements
  */
 
-#include <stdlib.h>1
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -43,7 +43,7 @@ void q_free(queue_t *q)
     /* You'll want to loop through the list nodes until the next pointer is NULL,
      * starting at the head, freeing each node and its string. 
      * Account for an empty list (head is NULL). */
-    q_free(q->head);
+    q_free(q->tail);
     // Freeing queue structure itself
     free(q);
 }
