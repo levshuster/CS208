@@ -14,7 +14,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "harness.h"
+#include "harness.h" //rrmemeber to uncomment for grading
 #include "queue.h"
 
 /*
@@ -38,7 +38,7 @@ Queue *q_new()
 /* Free all storage used by queue */
 void q_free(Queue *q)
 {
-    // What if q is NULL?  **[erhaps do opisite]
+    // What if q is NULL?
     if(q != NULL){
 
       // TODO free the queue nodes
@@ -53,13 +53,7 @@ void q_free(Queue *q)
         q->head = q->head->next;
         free(tempHead->value);
         free(tempHead);
-        // free(q->tail);
-        // free(q->size);
       }
-
-      // q_free(q->tail);
-      // free(q->head);
-
 
       // Freeing queue structure itself
       free(q);
@@ -137,9 +131,11 @@ bool q_insert_tail(Queue *q, char *s)
     // TODO use malloc to allocate space for the value and copy s to value
     // See the C Tutor example linked from page 4 of the writeup!
     // If this second malloc call returns NULL, you need to free newh before returning
+    // TODO implement in similar fashion to q_insert_head
+    // if the list was empty, the head might also need updating
+    // return false;
     newh->value = (char*) malloc(strlen(s) + 1);
     if(newh->value == NULL){
-      printf("I failed here");
       free(newh);
       return false;
     }
@@ -160,9 +156,7 @@ bool q_insert_tail(Queue *q, char *s)
 
 
     return true;
-    // TODO implement in similar fashion to q_insert_head
-    // if the list was empty, the head might also need updating
-    // return false;
+
 }
 
 /*
@@ -179,6 +173,7 @@ bool q_remove_head(Queue *q, char *sp, long bufsize)
     if(q == NULL || q->size == 0){ // may need to change behavor of sp
       return false;
     }
+
     if (sp != NULL){
       // TODO if sp is not NULL, copy value at the head to sp
       strncpy(sp, q->head->value, bufsize-1);// I thik I probably need -1 at the end
@@ -187,19 +182,16 @@ bool q_remove_head(Queue *q, char *sp, long bufsize)
       // bufsize is the number of characters already allocated for sp
       // Copy over bufsize - 1 characters and manually write a null terminator ('\0')
       // to the last index of sp
-
-      // update q->head to remove the current head from the queue
-      // printf("hi round thing");
       Node *temp;
-      //struct node *temp;
-
       temp = q->head;
       q->head = q->head->next;
       q->size -= 1;
+
       // if the last list element was removed, the tail might need updating
       if(q->size == 0){
         q->tail = NULL;
       }
+
       free(temp->value);
       free(temp);
     }
@@ -217,7 +209,6 @@ int q_size(Queue *q)
     }else{
       return q->size;
     }
-    // What if q is NULL?
 }
 
 /*
@@ -230,39 +221,54 @@ int q_size(Queue *q)
 
 // Node* q_reverse_helper(Node* currentNode, Queue *q)
 // {
-//   char *temp = currentNode->value;
-//   if(currentNode == q->tail){
-//     currentNode->value = q->head->value;
-//     q->head->value = temp;
-//     printf("flipped %s with %s", q->head->value, currentNode->value);
-//     return q->head->next;
-//   }else{
-//     Node* front_node = q_reverse_helper(currentNode->next, q);
-//     currentNode->value = front_node->value;
-//     front_node->value = temp;
-//     printf("flipped %s with %s", currentNode->value, front_node->value);
+//   // char *temp = currentNode->value;
+//   // if(currentNode == q->tail){
+//   //   currentNode->value = q->head->value;
+//   //   q->head->value = temp;
+//   //   printf("flipped %s with %s", q->head->value, currentNode->value);
+//   //   return q->head->next;
+//   // }else{
+//   //   Node* front_node = q_reverse_helper(currentNode->next, q);
+//   //   currentNode->value = front_node->value;
+//   //   front_node->value = temp;
+//   //   printf("flipped %s with %s", currentNode->value, front_node->value);
 
-//     return front_node->next;
-//   }
+//   //   return front_node->next;
+//   // }
 // }
+
+// void q_reverse(Queue *q)// I'm worried that even when this works, it will reverse the whole deck twice so it will return to the starting position
+// {// on second thought I esxpect the first and last items to be flipped swice while the rest will be reversed, the solution is to remove the complexity of the base case to just return not to flip 
+//     TODO check if q is NULL or empty
+    // if(q != NULL && q->size != 0){ // may need to change behavor of sp
+//       q_reverse_helper(q->head, q);
+//     }
+// }    
 
 void q_reverse(Queue *q)
-{
-    // TODO check if q is NULL or empty
-    // if(q != NULL && q->size != 0){ // may need to change behavor of sp
-    //   q_reverse_helper(q->head, q);
-    // }
-}    
+{ 
+  int number_of_elements = q_size(q);
+  if(q != NULL && number_of_elements != 0 && number_of_elements < 10000){
+    Node* current_q = q->head;
+    Node *temp_array_of_nodes[number_of_elements];
 
-// int main(void){
-//   Queue *test = q_new();
-//   q_insert_head(test, "a");
-//   q_insert_tail(test, "b");
-//   q_insert_tail(test, "c");
-//   q_insert_tail(test, "d");
-//   q_size(test);
-//   q_reverse(test);
-//   char* temp = malloc(sizeof("a"));
-//   q_remove_head(test, temp, 2);
-//   q_free(test);
-// }
+    // printf("size of list is %li\n\n\n", sizeof(temp_array_of_nodes) / sizeof(temp_array_of_nodes[0]));
+    for(int i = 0; i < number_of_elements-1; ++i){
+      // printf("set-up on node %i, with value %s\n\n", i, current_q->value);
+      temp_array_of_nodes[i]=current_q;
+      if(current_q->next != NULL){
+        current_q = current_q->next;
+      }
+    }
+
+    q->head = current_q;
+    for(int i = number_of_elements-1; i > 0; --i){
+      // printf("reorder on node %i, temp_array i is %p and temp_array of i-1 is %p, current_q is %p, and current_q->next is %p\n", i, temp_array_of_nodes[i], temp_array_of_nodes[i-1], current_q, current_q->next);
+      current_q->next = temp_array_of_nodes[i-1];
+      current_q = current_q->next;
+    }
+    q->tail = current_q;
+    current_q->next = NULL; 
+    // printf("last item is %s and the head is %s", current_q->value, q->head->value);
+  }
+}    
