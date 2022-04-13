@@ -192,7 +192,7 @@ int sign(int x) {
  *   Rating: 5
  */
 int getByte(int x, int n) {
-  return (x>>(n<<3)) & 0x000000ff;
+  return (x>>(n<<3)) & 0xff;
 }
 /*
  * bitXor - x^y using only ~ and &
@@ -205,7 +205,9 @@ int getByte(int x, int n) {
  *           and y both have 0s) and then inverting that
  */
 int bitXor(int x, int y) {
-  return 2;
+  int a = ~((~x)&(~y)) ;// x or y
+  // printf("           %i\nnot x or y %i\n           --------------\n           %i\n\n",x,y, a);
+  return a&(~(x&y));
 }
 /*
  * bitAnd - x&y using only ~ and |
