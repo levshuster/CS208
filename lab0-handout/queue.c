@@ -14,7 +14,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "harness.h" //rrmemeber to uncomment for grading
+#include "harness.h"
 #include "queue.h"
 
 /*
