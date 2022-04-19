@@ -219,7 +219,7 @@ int bitXor(int x, int y) {
  *           (1s where x or y or both have 0s) and then invert that
  */
 int bitAnd(int x, int y) {
-  return 2;
+  return ~((~y) | (~x));
 }
 /*
  * conditional - same as if (x) { return y; } else { return z; } or
@@ -232,8 +232,15 @@ int bitAnd(int x, int y) {
  *           all 1s depending on whether x is true or not. Apply these masks to
  *           y and z and return the combined result.
  */
+// int conditional(int x, int y, int z) {
+//   int mask = (!x) + ~0;
+//   // printf("\n%i\n", mask);
+//   return (y & ~mask) | (z & mask);
+// }
 int conditional(int x, int y, int z) {
-  return 2;
+  int mask = ((!x)<<31)>>31;
+  // printf("\n%i\n", mask);
+  return (y & ~mask) | (z & mask);
 }
 /*
  * logicalNeg - implement the ! operator, using all of
@@ -245,7 +252,9 @@ int conditional(int x, int y, int z) {
  *   Advice: use x and -x to detect when x is 0
  */
 int logicalNeg(int x) {
-  return 2;
+  int neg_x = (~x)+1; //removing the plus one gets me to pass a fair number of issues
+  // printf("\nx is aa%i, and neg_x is aa%i, adding the two vars together gets me aa%i\n\n", x, neg_x, neg_x+x);
+  return ((x | neg_x)>>31) +1;
 }
 /*
  * isLessOrEqual - if x <= y  then return 1, else return 0
@@ -257,9 +266,68 @@ int logicalNeg(int x) {
  *           Handle additional cases: negative overflow, positive overflow, zero,
  *           and combine the results
  */
+// retturn false id y > x instead of true if x <=y  y-x not x-y
+
 int isLessOrEqual(int x, int y) {
-  return 2;
+  int result = (y+(~x +1));
+  int isSame = y^x;
+  int isOverflow = y ^ result;
+  int overFlowMask = isSame & isOverflow;
+  return !((overFlowMask ^ result) >> 31) ; 
 }
+
+// int isLessOrEqual(int x, int y) {
+//   // printf("\n\n is %i <= %i?\n", x, y);
+
+//   int result = (y+(~x +1));
+//   int isSame = y^x;
+//   int isOverflow = y ^ result;
+//   int overFlowMask = ((isSame & isOverflow) >> 31);
+//   int isNegitive =  (result>>31);
+//   // printf("isNegitive is %i, subtractring y from x gives %i, and overFlowMask is %i\n", isNegitive, result, overFlowMask);
+//   // printf("mask debuging:   isSame is %i, isOverflow is %i\n", isSame, isOverflow);
+//   return !(overFlowMask ^ isNegitive) | !result ;  //end means if subracting the two is zero return 1
+// }
+// // retturn false id y > x instead of true if x <=y  y-x not x-y
+// int isLessOrEqual(int x, int y) {
+//   printf("\n\n is %i <= %i?\n", x, y);
+
+//   int result = (y+(~x +1));
+//   int isSame = y^x;
+//   int isOverflow = x ^ result;
+//   int overFlowMask = ~((isSame ^ isOverflow) >> 31);
+//   int rtrn =  overFlowMask & !(result>>31);
+//   printf("the return is %i, subtractring the two gives %i, and the mask is %i\n", rtrn, result, overFlowMask);
+//   printf("mask debuging:   isSame is %i, isOverflow is %i", isSame, isOverflow);
+//   return rtrn | !result;
+// }
+
+// // retturn false id y > x instead of true if x <=y  y-x not x-y
+// int isLessOrEqual(int x, int y) {
+//   int xneg = x >> 31; // 0 if 0 or above totherwise all 1s
+//   int yneg = y >> 31;
+//   int bothneg = xneg & yneg; // used to cover oberflow in the return statment
+//   int intDiff = x + ((~y)+1);
+//   int sign = intDiff >> 31 & 1;  // 1 if negitive
+//   // (sign>>yneg)  zero if yneg is not zero
+//   return (sign>>yneg) | (xneg & !yneg ) | (sign >> !bothneg) | (1>>!!intDiff);
+// }
+// // retturn false id y > x instead of true if x <=y  y-x not x-y
+// int isLessOrEqual(int x, int y) {
+
+//   int subtract = x + ((~y)+1);
+//   subtract = x -y;
+//   int isneg = !!(subtract >> 31);
+//   printf("\nx is %i, y is %i, subract is %i, isneg is %i\n\n", x, y, subtract, isneg);
+  
+//   //if x -y is larger than x then we have a problem
+//   //subtract - x 
+  
+//   //if x -y is zero then output should be one
+  
+
+//   return isneg;
+// }
 /* 
  * absVal - absolute value of x
  *   Example: absVal(-1) = 1.
@@ -271,11 +339,12 @@ int isLessOrEqual(int x, int y) {
  *           (^ may prove useful.)
  */
 int absVal(int x) {
-  return 2;
+  int mostsig = x >> 31;
+  return (mostsig ^ x) + (mostsig & 1);
 }
 /*
  * isPower2 - returns 1 if x is a power of 2, and 0 otherwise
- *   Examples: isPower2(5) = 0, isPower2(8) = 1, isPower2(0) = 0
+ *   Examples: isPowe r2(5) = 0, isPower2(8) = 1, isPower2(0) = 0
  *   Note that no negative number is a power of 2.
  *   Legal ops: ! ~ & ^ | + << >>
  *   Max ops: 20
@@ -284,6 +353,17 @@ int absVal(int x) {
  *           significant place. When x is a power of 2, x - 1 and x will not
  *           have 1s in any of the same places.
  */
+
+
 int isPower2(int x) {
-  return 2;
+  int neg1 = ~(x>>31) + !x; //if -1 or if 0 returns 0x00000000 else returns 0x1111111111
+  int y = x + neg1;  //subracts 1 from x assuming x is not negitive or 0
+  // printf("ISPWR2           given %i -1 is %i so anding them gives you %i (0 if ispower of 2), and the mask for negitives is %i, and the mask for zero is %i\n\n", x, y, (y & x), ~(x>>31), (!x -1));
+  return !(y & x) & neg1; //
 }
+// int isPower2(int x) {
+//   int neg1 = ~(x>>31) + !x; //if -1 or if 0 returns 0x00000000 else returns 0x1111111111
+//   int y = x + neg1;  //subracts 1 from x assuming x is not negitive or 0
+//   // printf("ISPWR2           given %i -1 is %i so anding them gives you %i (0 if ispower of 2), and the mask for negitives is %i, and the mask for zero is %i\n\n", x, y, (y & x), ~(x>>31), (!x -1));
+//   return (!(y & x)) & neg1; //
+// }
