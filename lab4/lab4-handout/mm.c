@@ -39,10 +39,13 @@
 #include "memlib.h"
 
 /* Basic constants and macros */
-#define WSIZE       8       /* word size (bytes) */
-#define DSIZE       16      /* doubleword size (bytes) */
-#define CHUNKSIZE  (1<<12)  /* initial heap size (bytes) */
-#define OVERHEAD    16      /* overhead of header and footer (bytes) */
+#define WSIZE               8       /* word size (bytes) */
+#define DSIZE               16      /* doubleword size (bytes) */
+#define CHUNKSIZE           (1<<12) /* initial heap size (bytes) */
+#define OVERHEAD            16      /* overhead of header and footer (bytes) */
+#define MIN_B_SIZE          32      /* min block size */
+// #define MIN_Payload_SIZE    16      /* minimum number of bits that the smallest payload can hold */
+
 
 /* NOTE: feel free to replace these macros with helper functions and/or
  * add new ones that will be useful for you. Just make sure you think
@@ -71,6 +74,11 @@
 /* Given block ptr bp, compute address of next and previous blocks */
 #define NEXT_BLKP(bp)  (PADD(bp, GET_SIZE(HDRP(bp))))
 #define PREV_BLKP(bp)  (PSUB(bp, GET_SIZE((PSUB(bp, DSIZE)))))
+
+
+/* Given block ptr bp, return the allocation status of the block preceding (in memory order) */
+#define PREV_ALLOC(bp) (GET_ALLOC(HDRP(PREV_BLKP(bp)))); // TODO test to make sure works as exspected
+
 
 /* Global variables */
 
@@ -153,13 +161,22 @@ void *mm_malloc(size_t size) {
 }
 
 /*
- * mm_free -- <What does this function do?>
- * <What are the function's arguments?>
- * <What is the function's return value?>
- * <Are there any preconditions or postconditions?>
+ * mm_free -- free the block whose payload is pointed to by ptr
+ * the function takes in a pointer to the block that will be freed
+ * VOID - Nothing. This function assumes the payload was previously returned / unwanted
+ * PRECONDITION: The payload was returned by an earlier call to mm_malloc
+ * PRECONDITION: The payload has not been previously freed since its most recent return
+ * from malloc 
  */
 void mm_free(void *bp) {
-    // TODO: implement this function
+    // Calculate what the header/footer would be unallocated:
+    size_t newhead = *HDRP(bp); // size_t is meant to functinoally be an unsigned long
+    newhead = PACK(newhead, 0); // masking: ... & (~0xf)   //TODO turn into bitwise operation or find out about decrement operator (--)
+    
+    // Make the last bit of the header 0.
+    *HDRP(bp) = newhead; // TODO test to make sure this updates header correctly
+    // Make the last bit of the footer 0.
+    *FTRP(bp) = newhead; // variable reuse!
 }
 
 /* The remaining routines are internal helper routines */
@@ -172,13 +189,35 @@ void mm_free(void *bp) {
  * Returns nothing
  * <Are there any preconditions or postconditions?>
  */
-static void place(void *bp, size_t asize) {
-    // TODO: improve this function
+static void place(void *bp, size_t asize) { // TODO : ask Aaron if variable 'asize' is just the size of the payload or if it's adjusted
+    // calc block size (total w/ byte-alignment)
+    //      done by dividing asize by DSIZE then rounding up and multiplying by 16
+    size_t size = (ceil(asize / 16) * 16) + 16;  // used to be unsigned long
+    size_t unalloc_size = GET_SIZE(HDRP(bp)) - size; // size of unallocated remainder - used for splitting
 
-    // REPLACE THIS
-    // currently does no splitting, just allocates the entire free block
-    PUT(HDRP(bp), PACK(GET_SIZE(HDRP(bp)), 1));
-    PUT(FTRP(bp), PACK(GET_SIZE(HDRP(bp)), 1));
+    //      option 2 : size_t size = asize + (asize % 16) + 16;
+
+    // set header/footer to be size++ (total size + allocation bit)
+    header_value = PACK(size, 1); // masking: ... & ((~0)-1)   //TODO turn into bitwise operation or find out about decrement operator (--)    
+    //      header_value = size + 1;
+
+    // Setting Header/Footer values for 
+    PUT(HDRP(bp), header_value); // Update header
+    //      find location of footer by decrementing size by 8
+    PUT(PADD(bp, PSUB(size, WSIZE)), header_value); // Update footer, translation : set the value @ (bp + (size-16)) to header_value
+
+    // SPLITTING:
+    next_head = PADD(HDRP(bp), size);
+    PUT(next_head, unalloc_size); // Update header
+    PUT(PADD(next_head, PSUB(unalloc_size, WSIZE)), unalloc_size); // Update header
+
+    // setting header/footer
+
+    /* orignal code from lab assigment 
+    * currently does no splitting, just allocates the entire free block
+    * PUT(HDRP(bp), PACK(GET_SIZE(HDRP(bp)), 1));
+    * PUT(FTRP(bp), PACK(GET_SIZE(HDRP(bp)), 1));
+    */
 }
 
 /*
