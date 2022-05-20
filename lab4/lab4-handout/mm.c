@@ -80,7 +80,8 @@
 
 /* Given block ptr bp, return the allocation status of the block preceding (in memory order) */
 #define PREV_ALLOC(bp) (GET_ALLOC(HDRP(PREV_BLKP(bp)))); // TODO test to make sure works as exspected
-
+/* Given the two pointers of two neighboring unalloced blocks, merge them*/
+#define COALESCE(h1, h2) (PUT(h1, GET(h1) + GET(h2))) //double check that first arg should be h1
 
 /* Global variables */
 
@@ -171,13 +172,19 @@ void *mm_malloc(size_t size) {
  * from malloc 
  */
 void mm_free(void *bp) {
+    printf("\n\n\n starting to free \n");
     // Calculate what the header/footer would be unallocated:
-    size_t newhead = *HDRP(bp); // size_t is meant to functinoally be an unsigned long
+    size_t newhead = GET_SIZE(HDRP(bp)); // size_t is meant to functinoally be an unsigned long
     newhead = PACK(newhead, 0); // masking: ... & (~0xf)   //TODO turn into bitwise operation or find out about decrement operator (--)
     // Make the last bit of the header 0.
     *HDRP(bp) = newhead; // TODO test to make sure this updates header correctly
     // Make the last bit of the footer 0.
     *FTRP(bp) = newhead; // variable reuse!
+    printf("heap at the end of free\n");
+    printf("the allocation state of this block is: %i \n\n", (int) GET_ALLOC(HDRP(bp)));
+    // print_heap();
+    // check_heap(__LINE__);
+
 }
 
 /* The remaining routines are internal helper routines */
@@ -190,36 +197,47 @@ void mm_free(void *bp) {
  * Returns nothing
  * <Are there any preconditions or postconditions?>
  */
-static void place(void *bp, size_t asize) { // TODO : ask Aaron if variable 'asize' is just the size of the payload or if it's adjusted
+static void place(void *bp, size_t asize) { // 'asize' is just the size of the payload + head/foot + padding O
     // calc block size (total w/ byte-alignment)
+    printf("\n\ntrying to place\n\n");
     //      done by dividing asize by DSIZE then rounding up and multiplying by 16
-    size_t size = asize; //(ceil(asize / 16) * 16) + 16;  // used to be unsigned long
-    size_t unalloc_size = GET_SIZE(HDRP(bp)) - size; // size of unallocated remainder - used for splitting
+    size_t unalloc_size = GET_SIZE(HDRP(bp)) - asize; // size of unallocated remainder - used for splitting
+
+    /* TESTING */
+    // printf("Current total unallocated: %i \n", (int) GET_SIZE(HDRP(bp)));
+    // printf("Allocating %ld bytes \n", asize);
+    // printf("allocated %ld bytes, %ld bytes remain \n", asize, unalloc_size);
 
     // //      option 2 : size_t size = asize + (asize % 16) + 16;
 
     // // set header/footer to be size++ (total size + allocation bit)
-    size_t header_value = PACK(size, 1); //double check that this should be size_t// masking: ... & ((~0)-1)   //TODO turn into bitwise operation or find out about decrement operator (--)    
+    size_t header_value = PACK(asize, 1); //double check that this should be size_t// masking: ... & ((~0)-1)   
+    //TODO turn into bitwise operation or find out about decrement operator (--)    
         //  header_value = size + 1;
 
     // // Setting Header/Footer values for 
     PUT(HDRP(bp), header_value); // Update header
     // //      find location of footer by decrementing size by 8
-    PUT(PADD(bp, (size_t) PSUB(size, WSIZE)), header_value); // Update footer, translation : set the value @ (bp + (size-16)) to header_value
+    PUT(FTRP(bp), header_value);
+    // PUT(PADD(bp, (size_t) PSUB(asize, WSIZE)), header_value); // Update footer, translation : set the value @ (bp + (size-8)) to header_value
 
     // // SPLITTING:
-    size_t next_head = (size_t) PADD(HDRP(bp), size);
+    //old code: size_t next_head = (size_t) PADD(HDRP(bp), asize);
+    size_t next_head = (size_t) HDRP((size_t) NEXT_BLKP(bp));
     PUT(next_head, unalloc_size); // Update header
-    PUT(PADD(next_head, (size_t) PSUB(unalloc_size, WSIZE)), unalloc_size); // Update header
-    // backup: PUT(next_head + (unalloc_size - WSIZE), unalloc_size); // Update header
+
+    // PUT(PADD(next_head, (size_t) PSUB(unalloc_size, WSIZE)), unalloc_size); // Update footer
+    PUT(FTRP(PADD(next_head, 8)), unalloc_size); // FTRP of fake payload pointer, updates footer
+    // printf("Bytes split: %ld \n", GET_SIZE(next_head));
 
     // setting header/footer
 
     // orignal code from lab assigment 
     // currently does no splitting, just allocates the entire free block
-    //PUT(HDRP(bp), PACK(GET_SIZE(HDRP(bp)), 1));
-    //PUT(FTRP(bp), PACK(GET_SIZE(HDRP(bp)), 1));
-    // print_heap();
+    // PUT(HDRP(bp), PACK(GET_SIZE(HDRP(bp)), 1));
+    // PUT(FTRP(bp), PACK(GET_SIZE(HDRP(bp)), 1));
+    //printf("\n]n heap at the end of place");
+    //print_heap();
     
 }
 
@@ -230,11 +248,58 @@ static void place(void *bp, size_t asize) { // TODO : ask Aaron if variable 'asi
  * <Are there any preconditions or postconditions?>
  */
 static void *coalesce(void *bp) {
-    // TODO: improve this function
+    printf("\n\n\n starting to coalesce\n");
 
-    // REPLACE THIS
-    // currently does no coalescing
-    return bp;
+    size_t retval = (size_t) bp;
+    // Make a pointer to the previous header
+    size_t previous_header = (size_t) HDRP(PREV_BLKP(bp));
+    printf("the previous header is %ld\n", previous_header);
+    printf("no segfault when setting prev header, the prev header allocation state is %i (ref: %ld) \n", ((int) GET_ALLOC(previous_header)), ((size_t) (((size_t) GET_ALLOC(previous_header)) << 63)));
+    // if previous is unallocated:
+    if (!GET_ALLOC(previous_header)) {
+        retval = (size_t) PREV_BLKP(bp); // set the retval to the previous block pointer
+        // printf("coalescing previous\n");
+
+        size_t totalsize = GET_SIZE(previous_header) + GET_SIZE(HDRP(bp));
+        printf("no segfault when setting total size\n");
+        PUT(HDRP(retval), totalsize);
+        printf("no segfault when putting header (prev)\n");
+        PUT(FTRP(retval), totalsize);
+        printf("no segfault when putting footer (prev)\n\n");
+
+        // COALESCE(previous_header, HDRP(bp)); // coalesce the two
+        // // put at the footer's pointer (FTRP) the value (GET) at the header's pointer (HDRP)
+        // PUT((size_t) FTRP((size_t) retval), (size_t) GET((size_t)HDRP((size_t)retval)));
+        // // printf("previous worked\n");
+    } 
+    // Make a pointer to the next header
+    size_t next_header = (size_t) HDRP(NEXT_BLKP(bp));
+    printf("the next header is %ld\n", next_header);
+    printf("no segfault when setting next header, the next header allocation state is %ld (ref: %ld) \n", GET_ALLOC(next_header), ((size_t) (((size_t) GET_ALLOC(previous_header)) << 63)));
+    // if next is unallocated:
+    if (!GET_ALLOC(next_header)) {
+        // we don't need to change the retval because no matter what
+        // it'll always be pointing to the first unalloced block in the order
+        // printf("coalescing next\n");
+
+        size_t totalsize = GET_SIZE(next_header) + GET_SIZE(HDRP(bp));
+        printf("no segfault when getting total size\n");
+        PUT(HDRP(retval), totalsize);
+        printf("no segfault when putting header (next)\n");
+        PUT(FTRP(retval), totalsize);
+        printf("no segfault when putting footer (next)\n\n");
+
+        // COALESCE(HDRP(retval), next_header); // coalesce the two
+        // //put at the footer's pointer (FTRP) the value (GET) at the header's pointer (HDRP)
+        // PUT((size_t) FTRP((size_t) retval), (size_t) GET((size_t) HDRP((size_t)retval)));
+        // // printf("next worked\n");
+    }
+
+    // printf("heap at the end of coalesce\n");
+    print_heap();
+    // check_heap(__LINE__);
+    printf("\n\nmake it to the end of a coalese call\n\n");
+    return (void*) retval;
 }
 
 
@@ -262,7 +327,7 @@ static void *extend_heap(size_t words) {
     size = words * WSIZE;
     if (words % 2 == 1)
         size += WSIZE;
-    // printf("extending heap to %zu bytes\n", mem_heapsize());
+    printf("extending heap to %zu bytes\n", mem_heapsize());
     if ((long)(bp = mem_sbrk(size)) < 0)
         return NULL;
 
