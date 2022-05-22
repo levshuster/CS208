@@ -98,12 +98,13 @@ static void *heap_start = NULL;
 
 static bool check_heap(int lineno);
 static void print_heap();
-static void print_block(void *bp);
 static void print_linked_list();
+static void print_block(void *bp);
 static bool check_block(int lineno, void *bp);
 static void *extend_heap(size_t size);
 static void *find_fit(size_t asize);
 static void *coalesce(void *bp);
+static void linked_list_coalesce_helper(void *bp);
 static void place(void *bp, size_t asize);
 static size_t max(size_t x, size_t y);
 
@@ -125,13 +126,19 @@ int mm_init(void) {
     PUT(PADD(heap_start, WSIZE + DSIZE), PACK(0, 1));   /* epilogue header */
 
     heap_start = PADD(heap_start, DSIZE); /* start the heap at the (size 0) payload of the prologue block */
+    
+    print_heap();
 
     /* Extend the empty heap with a free block of CHUNKSIZE bytes */
     if (extend_heap(CHUNKSIZE / WSIZE) == NULL)
         return -1;
 
+    printf("got to the end of extend heap 2x \n");
+
     PUT(PTR_NEXT_PTR(NEXT_PTR(PSUB(heap_start, DSIZE))), (size_t) 0); // put 0 @ the first free block 'next' pointer
     PUT(PTR_PREV_PTR(NEXT_PTR(PSUB(heap_start, DSIZE))), (size_t) 0); // put 0 @ the first free block 'next' pointer
+
+    print_heap();
 
     return 0;
 }
@@ -162,7 +169,11 @@ void *mm_malloc(size_t size) {
 
     /* Search the free list for a fit */
     if ((bp = find_fit(asize)) != NULL) {
+        printf("in malloc if statment\n");
+        print_linked_list();
         place(bp, asize);
+        print_heap();
+        printf("\n\nfinished to malloc\n");
         return bp;
     }
 
@@ -171,6 +182,8 @@ void *mm_malloc(size_t size) {
     if ((bp = extend_heap(extendsize / WSIZE)) == NULL)
         return NULL;
 
+    printf("about to start second place \n");
+    print_heap();
     place(bp, asize);
     printf("\n\nfinished to malloc\n");
 
@@ -250,9 +263,9 @@ static void place(void *bp, size_t asize) { // 'asize' is just the size of the p
         }
     } else {
         printf("decided that splitting is not necessary\n");
-        if (next == NULL) {
+        if (!nextL) {
             PUT(PTR_NEXT_PTR(prev), (size_t) 0);
-        } if (prev == NULL) {
+        } if (!prev) {
             PUT(PTR_PREV_PTR(next), (size_t) 0);
 
             
@@ -270,50 +283,94 @@ static void place(void *bp, size_t asize) { // 'asize' is just the size of the p
         PUT(PTR_PREV_PTR(NEXT_PTR(unalloc_blk)), (size_t) unalloc_blk);
         */
     }
-    print_linked_list();
+    print_heap();
     printf("finished place\n");
-
-
 }
 
 static void linked_list_coalesce_helper(void *bp) {
     printf("\n\nstarting to coalesce the linked list\n");
-
-
     void* next = NEXT_BLKP(bp); // next block, physically
     void* prev = PREV_BLKP(bp); // previous block, physically
     void* previous_header = HDRP(prev); // Make a pointer to the previous header
     void* next_header = HDRP(next); // Make a pointer to the next header
+    print_heap();
     
-    if ( (GET(previous_header) && !GET_ALLOC(previous_header)) && (GET(next_header) && !GET_ALLOC(next_header)) ) { // if: (previous exists and unalloc) and (next exists and unalloc)
-            //remove the previously empty block affter the newly freed block from the linked list
-            void* ll_next = (void*) NEXT_PTR(next); // next linked list item
+    /* if: (previous exists and unalloc) and (next exists and unalloc) */
+    if ( (GET(previous_header) && !GET_ALLOC(previous_header)) && (GET(next_header) && !GET_ALLOC(next_header)) ) {
+        void* ll_next = (void*) NEXT_PTR(next); // next linked list item from 'next'
+        void* ll_prev = (void*) PREV_PTR(next); // previous linked list item from 'next'
+        printf("prev unalloc and next unalloc\n");
+        print_heap();
+        /* if-statements to catch edge cases */
+        if (!ll_prev) { // if 'next' is at the start of ll
+            PUT(PTR_PREV_PTR(ll_next), 0); // next item in ll now jumps backward to NULL
+            PUT((size_t*)PTR_NEXT_PTR((size_t*) PSUB(heap_start, 16)), (size_t) ll_next); // heap start pointer now jumps forward to next item in ll
 
-            /* what's going on here????????????????? */
-            PUT(PTR_NEXT_PTR(PREV_PTR(ll_next)), NEXT_PTR(ll_next)); // set the 'next' pointer of the left block to  
-            PUT(PTR_PREV_PTR(NEXT_PTR(ll_next)), PREV_PTR(ll_next)); // set the 'prev' pointer of the right block to
+        } else if (!ll_next) { // if 'next' is at the end of ll
+            PUT((size_t*) PTR_PREV_PTR(ll_prev), 0); // set the prev item in the linked list to be the last item
+        } else { // if 'next' is in the middle of the linked list
+            PUT((size_t*) PTR_NEXT_PTR(ll_prev), (size_t) NEXT_PTR(ll_next)); // ll_prev now jumps forward directly to ll_next 
+            PUT((size_t*) PTR_PREV_PTR(ll_next), (size_t) PREV_PTR(ll_next)); // ll_next now jumps backward directly to ll_prev
+        }
+    /* if: (next exists and is unalloc) */
+    } else if (GET(next_header) && !GET_ALLOC(next_header)) { 
+        printf("next unalloc ONLY\n");
+        print_heap();
+        size_t* ll_next = (size_t*) NEXT_PTR(next); // next linked list item
+        size_t* ll_prev = (size_t*) PREV_PTR(next); // prev linked list item
 
-    } else if (GET(next_header) && !GET_ALLOC(next_header)) { // move previous and next to the start of the newly bigger block and change pointers of the ll next and ll previous block
-        void* ll_next = (void*) NEXT_PTR(next); // next linked list item
-        void* ll_prev = (void*) PREV_PTR(next); // prev linked list item
-        // set the next_ptr values of the newly freed block to the values of the previously freed block after it
-        PUT(PTR_NEXT_PTR(bp), NEXT_PTR(next)); 
-        PUT(PTR_PREV_PTR(bp), PREV_PTR(next)); 
+        if (!ll_prev) { // if 'next' is at the beginning
+            /* setting bp's values */
+            PUT((size_t*) PTR_PREV_PTR(bp), 0); // bp now jumps backward to NULL
+            PUT((size_t*) PTR_NEXT_PTR(bp), (size_t) ll_next); // bp now jumps forward to next ll item
+            /* setting ll_next's value */
+            PUT((size_t*) PTR_PREV_PTR(ll_next), (size_t) bp); // next ll item now jumps backward to bp
+
+        } else if (!ll_next) { // if 'next' is at the end
+            /* setting bp's values */
+            PUT((size_t*) PTR_NEXT_PTR(bp), 0); // bp now jumps forward to NULL
+            PUT((size_t*) PTR_PREV_PTR(bp), (size_t) ll_prev); // bp now jumps backward to the previous linked-list item
+            /* setting ll_prev's value */
+            PUT((size_t*) PTR_NEXT_PTR(ll_prev), (size_t) bp); // previous linked-list item now jumps to bp
+        } else { // if 'next' is in the middle
+            /* setting bp's values */
+            PUT((size_t*) PTR_PREV_PTR(bp), (size_t) ll_prev); // bp now jumps backward to prev ll item
+            PUT((size_t*) PTR_NEXT_PTR(bp), (size_t) ll_next); // bp now jumps forward to next ll item
+            /* setting ll_prev and ll_next values */
+            PUT((size_t*) PTR_NEXT_PTR(ll_prev), (size_t) bp); // previous ll item now jumps forward to bp
+            PUT((size_t*) PTR_PREV_PTR(ll_next), (size_t) bp); // next ll item now jumps backward to bp
+        }      
+    } else { //add only current block to the linked list
+        printf("neither side unalloc\n");
+        print_heap();
+        size_t* start = (size_t*) PSUB(heap_start, DSIZE); // value that points to first ll item
+        size_t* second_item = (size_t*) NEXT_PTR(start); // get the old first item
+        /* link bp and second item in the ll */
+        printf("set start and second item\n");
+        print_heap();
+        PUT((size_t*) PTR_NEXT_PTR(bp), (size_t) second_item); // set bp's next item to be the second item
+        printf("put next ptr\n");
+        print_heap();
+
+        PUT((size_t*) PTR_PREV_PTR(second_item), (size_t) bp); // set the second item's previous value to bp
+        /* link bp and first item pointer */
+        printf("put prev ptr\n");
+        print_heap();
         
-        // set the neighbors of the previously freed block that follow the newly freed block to point to the newly freed block that will now be coalesed with the existing free block
-        PUT(PTR_PREV_PTR(ll_next), (size_t) bp); // put [a pointer to the bigger block] @ [the 'previous' field of the next block
-        PUT(PTR_NEXT_PTR(ll_prev), (size_t) bp); // put [a pointer to the bigger block] @ [the 'previous' field of the next block
-    
-    } else { //only add current block to the lined list
-        size_t* start = (size_t*) PSUB(heap_start, DSIZE);
-        size_t* second_item = (size_t*) *start; 
-        PUT(PTR_NEXT_PTR(bp), (size_t) second_item); // set bp's next item to be the second item
-        PUT(PTR_PREV_PTR(second_item), (size_t) bp); // set the second item's previous value to bp
-        PUT(PTR_PREV_PTR(bp), (size_t) 0);        // set bp's previous value to NULL
-        PUT(start, (size_t) bp);                     // put bp as start's value  
-    }
-    printf("\n\nfinished coaliscing the linked list\n");
+        PUT(PTR_PREV_PTR(bp), (size_t) 0); // set bp's previous value to NULL
+        printf("nullified bp's prev val\n");
+        print_heap();
+        PUT((size_t*) start, (size_t) bp); // put bp as start's value  
+        printf("put bp as start's value\n");
+        print_heap();
 
+    }
+    print_heap();
+
+    printf("\n\nfinished coalescing the linked list\n");
+
+    // print_heap();
+    // print_linked_list();
 }
 
 /*
@@ -330,14 +387,22 @@ static void *coalesce(void *bp) {
 
     void* retval = bp;
     //CHECKING PREVIOUS:
+    printf("checking previous block\n");
     void* previous_header = HDRP(PREV_BLKP(bp)); // Make a pointer to the previous header
+    printf("prev header value: %p\n", previous_header);
     if (!GET_ALLOC(previous_header)) { // if previous is unallocated:
+        printf("got into if statment\n");
         retval = PREV_BLKP(bp); // set the retval to the previous block pointer
         size_t totalsize = GET_SIZE(previous_header) + GET_SIZE(HDRP(bp));
+        print_heap();
+        printf("got total size \n");
         PUT(HDRP(retval), totalsize);
+        printf("header updated\n");
         PUT(FTRP(retval), totalsize);
+        printf("footer updated\n");
     } 
     // CHECKING NEXT:
+    printf("checking next block");
     void* next_header = HDRP(NEXT_BLKP(bp)); // Make a pointer to the next header
     if (!GET_ALLOC(next_header)) { // if next is unallocated:
         // we don't need to change the retval here
@@ -391,14 +456,17 @@ static void *extend_heap(size_t words) {
     if ((long)(bp = mem_sbrk(size)) < 0)
         return NULL;
 
+
+    print_heap();
     /* Initialize free block header/footer and the epilogue header */
     PUT(HDRP(bp), PACK(size, 0));         /* free block header */
     PUT(FTRP(bp), PACK(size, 0));         /* free block footer */
     PUT(HDRP(NEXT_BLKP(bp)), PACK(0, 1)); /* new epilogue header */
-
+    printf("finished header and footer\n");
+    print_heap();
     /* Coalesce if the previous block was free */
-    printf("coalsece value is %p\n", coalesce(bp)); //delete line in final product 
-    printf("\n\nfinished exstending the heap\n");
+    printf("coalesce value is %p\n", coalesce(bp)); //delete line in final product 
+    printf("\n\nfinished extending the heap\n");
     return coalesce(bp);
 }
 
