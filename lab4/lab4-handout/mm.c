@@ -263,7 +263,7 @@ static void place(void *bp, size_t asize) { // 'asize' is just the size of the p
         }
     } else {
         printf("decided that splitting is not necessary\n");
-        if (!nextL) {
+        if (!next) {
             PUT(PTR_NEXT_PTR(prev), (size_t) 0);
         } if (!prev) {
             PUT(PTR_PREV_PTR(next), (size_t) 0);
