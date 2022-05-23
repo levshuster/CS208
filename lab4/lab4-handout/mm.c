@@ -1,7 +1,7 @@
 /*
  * CS 208 Lab 4: Malloc Lab
  *
- * <Please put your name and userid here>
+ * By Sam Johnson-Lacoss and Lev Shuster (johnsonlacosss shusterl)
  *
  * Simple allocator based on implicit free lists, first fit search,
  * and boundary tag coalescing.
@@ -28,7 +28,6 @@
  * eliminate edge conditions during coalescing.
  */
 
-#include <math.h> //checck if we are aloud to import other functions
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -46,7 +45,6 @@
 #define CHUNKSIZE           (1<<12) /* initial heap size (bytes) */
 #define OVERHEAD            16      /* overhead of header and footer (bytes) */
 #define MIN_B_SIZE          32      /* min block size */
-// #define MIN_Payload_SIZE    16      /* minimum number of bits that the smallest payload can hold */
 
 
 /* NOTE: feel free to replace these macros with helper functions and/or
@@ -78,10 +76,9 @@
 #define PREV_BLKP(bp)  (PSUB(bp, GET_SIZE((PSUB(bp, DSIZE)))))
 
 /* Given block ptr bp, return the allocation status of the block preceding (in memory order) */
-#define PREV_ALLOC(bp) (GET_ALLOC(HDRP(PREV_BLKP(bp)))); // TODO test to make sure works as exspected
+#define PREV_ALLOC(bp) (GET_ALLOC(HDRP(PREV_BLKP(bp))));
 
 /* macros for explicit linked lists */
-//names flipped without checking all impacts
 #define PTR_NEXT_PTR(bp)  ((size_t *) bp) // Returns the pointer to the number that functions as the pointer to the bp of the previous value
 #define PTR_PREV_PTR(bp)  ((size_t *) PADD(bp, WSIZE)) // Returns the pointer to the number that functions as the pointer to the bp of the next value
 
@@ -95,7 +92,6 @@
 static void *heap_start = NULL;
 
 /* Function prototypes for internal helper routines */
-
 static bool check_heap(int lineno);
 static void print_heap();
 static void print_linked_list();
@@ -108,7 +104,10 @@ static void linked_list_coalesce_helper(void *bp);
 static void place(void *bp, size_t asize);
 static size_t max(size_t x, size_t y);
 
-
+/*
+ * For Grading Purposes: Information on the two authors
+ * We can be reached at shusterl@carleton.edu
+ */
 team_t johnsonlacosssshusterl = {
     .teamname = "johnsonlacosssshusterl", /* ID1+ID2 or ID1 */
     .name1 = "Sam Johnson-Lacoss",   /* full name of first member */
@@ -117,8 +116,8 @@ team_t johnsonlacosssshusterl = {
     .id2 = "shusterl",      /* login ID of second member */
 };
 
-/* UPDATED FOR EXPLICIT LINKED LIST
- * mm_init -- <What does this function do?>
+/* 
+ * mm_init -- This function creates the initial heap (padding, prologue, and epilogue) then expands the heap
  * <What are the function's arguments?>
  * <What is the function's return value?>
  * <Are there any preconditions or postconditions?>
@@ -128,12 +127,13 @@ int mm_init(void) {
     if ((heap_start = mem_sbrk(4 * WSIZE)) == NULL)
         return -1;
 
-    PUT(heap_start, (size_t) PADD(heap_start, MIN_B_SIZE));                        /* alignment padding set to the pointer to the first availble block (padding+prologue+header of the first block)*/
+    /* align padding then initialize an empty linked list in the padding */
+    PUT(heap_start, (size_t) PADD(heap_start, MIN_B_SIZE));
     PUT(heap_start, (size_t) 0);
 
 
-    PUT(PADD(heap_start, WSIZE), PACK(OVERHEAD, 1));  /* prologue header */ // sets header after empty space
-    PUT(PADD(heap_start, DSIZE), PACK(OVERHEAD, 1));  /* prologue footer */
+    PUT(PADD(heap_start, WSIZE), PACK(OVERHEAD, 1));    /* prologue header */ 
+    PUT(PADD(heap_start, DSIZE), PACK(OVERHEAD, 1));    /* prologue footer */
     PUT(PADD(heap_start, WSIZE + DSIZE), PACK(0, 1));   /* epilogue header */
 
     heap_start = PADD(heap_start, DSIZE); /* start the heap at the (size 0) payload of the prologue block */
@@ -144,6 +144,7 @@ int mm_init(void) {
 
     PUT(PTR_NEXT_PTR(NEXT_PTR(PSUB(heap_start, DSIZE))), (size_t) 0); // put 0 @ the first free block 'next' pointer
     PUT(PTR_PREV_PTR(NEXT_PTR(PSUB(heap_start, DSIZE))), (size_t) 0); // put 0 @ the first free block 'next' pointer
+    
     return 0;
 }
 
@@ -154,7 +155,7 @@ int mm_init(void) {
  * <Are there any preconditions or postconditions?>
  */
 void *mm_malloc(size_t size) {
-    printf("\nmalloc \n");    
+    printf("malloc \n");    
     print_linked_list();
     size_t asize;      /* adjusted block size */
     size_t extendsize; /* amount to extend heap if no fit */
@@ -174,7 +175,7 @@ void *mm_malloc(size_t size) {
 
     /* Search the free list for a fit */
     if ((bp = find_fit(asize)) != NULL) {
-        printf("FIND FIT SUCCESS\n");
+        // printf("FIND FIT SUCCESS\n");
         place(bp, asize);
         return bp;
     }
@@ -184,11 +185,11 @@ void *mm_malloc(size_t size) {
         return NULL;
     }
 
-    printf("FIND FIT FAILED. EXTEND_HEAP CALLED\n");
+    // printf("FIND FIT FAILED. EXTEND_HEAP CALLED\n");
     place(bp, asize);
     
-    printf("malloc done \n");
-    print_linked_list();
+    // printf("malloc done \n");
+    // print_linked_list();
     return bp;
 }
 
@@ -204,11 +205,12 @@ void mm_free(void *bp) {
     printf("free\n");
     // Calculate what the header/footer would be unallocated:
     size_t newhead = GET_SIZE(HDRP(bp)); // size_t is meant to functinoally be an unsigned long
-    newhead = PACK(newhead, 0); // masking: ... & (~0xf)   //TODO turn into bitwise operation or find out about decrement operator (--)
-    // Make the last bit of the header 0.
-    *HDRP(bp) = newhead; // TODO test to make sure this updates header correctly
-    // Make the last bit of the footer 0.
-    *FTRP(bp) = newhead; // variable reuse!
+    
+    newhead = PACK(newhead, 0); // masking: ... & (~0xf)
+    
+    // Make the last bit of the header and footer 0.
+    *HDRP(bp) = newhead;
+    *FTRP(bp) = newhead;
 
     size_t* padding = (size_t*) PSUB(heap_start, DSIZE);
     size_t* second = (size_t*) NEXT_PTR(padding);
@@ -232,29 +234,30 @@ void mm_free(void *bp) {
 static void place(void *bp, size_t asize) { // 'asize' is just the size of the payload + head/foot + padding O        
     printf("started place\n");
     print_linked_list();
-    size_t unalloc_size = GET_SIZE(HDRP(bp)) - asize; //PSUB((char*) GET_SIZE(HDRP(bp)), (char*) asize); // size of unallocated remainder - used for splitting
-    size_t header_value = PACK(asize, 1); //double check that this should be size_t// masking: ... & ((~0)-1) 
+    size_t unalloc_size = GET_SIZE(HDRP(bp)) - asize;
+    size_t header_value = PACK(asize, 1); //double check that this should be size_t
+    
     /* setting prev and next linked list items */
     size_t* prev = (size_t*) PREV_PTR(bp);
     size_t* next = (size_t*) NEXT_PTR(bp);  
-    // Setting Header/Footer values for newly-allocated block
+    
+    /* Setting Header/Footer values for newly-allocated block */
     PUT(HDRP(bp), header_value); // Update header
     PUT(FTRP(bp), header_value); // Update footer
     printf("mismatch in place 0: %i\n", ((GET_SIZE(HDRP(bp)) != 0)));
 
-    // // SPLITTING:
+    /* If there is remaining unallocated memory, split it off */
     if (unalloc_size > 0) {
         size_t* unalloc_blk = (size_t*) NEXT_BLKP(bp);
         PUT(HDRP(unalloc_blk), (size_t) unalloc_size); // Update header        
         PUT(FTRP(unalloc_blk), (size_t) unalloc_size); // Update footer
         printf("mismatch in header/footer (place 2): %i\n", (int) (HDRP(bp) != PSUB(FTRP(bp), (asize-8))));    
 
-        
-        // blk points outwards
+        /* making the block point outwards */
         PUT(PTR_PREV_PTR(unalloc_blk), (size_t) prev); // prev pointer
         PUT(PTR_NEXT_PTR(unalloc_blk), (size_t) next); // next pointer
         
-        // makes neighbors in linked list point to unallocated portion of the newly split block
+        /* make the neighbors point inwards to this block */
         if (prev) { // if previous is not NULL update previous value
             PUT(PTR_NEXT_PTR(prev), (size_t) unalloc_blk); // set the 'next' pointer of the previous block
         } else { // if the previous item *is* NULL
@@ -264,26 +267,18 @@ static void place(void *bp, size_t asize) { // 'asize' is just the size of the p
             PUT(PTR_PREV_PTR(next), (size_t) unalloc_blk); // set the 'prev' pointer of the next block
         }
     } 
-    else { // Don't split
-        if (!next) { // bp @ end
+    /* Otherwise, don't split */
+    else {
+        if (!next) { // bp is at the end of the LL
             PUT(PTR_NEXT_PTR(prev), (size_t) 0); // prev jumps to NULL
         } 
-        if (!prev) { // bp at start
+        if (!prev) { // bp is at the start of the LL
             PUT(PTR_PREV_PTR(next), (size_t) 0); // next jumps backward to NULL
  
-        } else if (next != NULL) { // if in middle
+        } else if (next != NULL) { // bp is at the middle of the LL
             PUT(PTR_PREV_PTR(next), (size_t)prev); // next jumps backward to prev
             PUT(PTR_NEXT_PTR(prev), (size_t)next); // prev jumps forward to next
         } 
-
-        /* orignial thinking
-        void* unalloc_blk = NEXT_BLKP(bp);
-        PUT(PREV_PTR(unalloc_blk), (size_t) unalloc_blk);
-        PUT(NEXT_PTR(unalloc_blk), (size_t) unalloc_blk);
-        // EXTERNAL:
-        PUT(PTR_NEXT_PTR(PREV_PTR(unalloc_blk)), (size_t) unalloc_blk);
-        PUT(PTR_PREV_PTR(NEXT_PTR(unalloc_blk)), (size_t) unalloc_blk);
-        */
     }
     printf("finished place\n");
     print_linked_list();
@@ -313,8 +308,7 @@ static void linked_list_coalesce_helper(void *bp) {
             PUT((size_t*) PTR_NEXT_PTR(ll_prev), (size_t) NEXT_PTR(ll_next)); // ll_prev now jumps forward directly to ll_next 
             PUT((size_t*) PTR_PREV_PTR(ll_next), (size_t) PREV_PTR(ll_next)); // ll_next now jumps backward directly to ll_prev
         }
-    print_linked_list();
-
+        print_linked_list();
     } else if (GET(next_header) && !GET_ALLOC(next_header)) { /* if: (next exists and is unalloc) */
     printf("NOT WANTED FOR FIRST: next exists and unalloc\n");
         size_t* ll_next = (size_t*) NEXT_PTR(next); // next linked list item
@@ -426,11 +420,6 @@ static void *coalesce(void *bp) {
  * find_fit - Find a fit for a block with asize bytes
  */
 static void *find_fit(size_t asize) {
-    /* search from the start of the free list to the end */
-    // for (char *cur_block = heap_start; GET_SIZE(HDRP(cur_block)) > 0; cur_block = NEXT_BLKP(cur_block)) {
-    //     if (!GET_ALLOC(HDRP(cur_block)) && (asize <= GET_SIZE(HDRP(cur_block))))
-    //         return cur_block;
-    // }
     for (char *cur_block = (char*) NEXT_PTR(PSUB(heap_start, DSIZE)); (size_t) cur_block != (size_t) 0; cur_block = (char *) NEXT_PTR(cur_block)) {
         // heap_start is set to the blk ptr of the prologue, so we do (heap_start-16) to get to the padding at the front
         if (asize <= GET_SIZE(HDRP(cur_block))) { // Since this is an explicit linked list containing ONLY free items, checking for freedom would be redundant
