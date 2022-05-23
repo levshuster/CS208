@@ -108,6 +108,15 @@ static void linked_list_coalesce_helper(void *bp);
 static void place(void *bp, size_t asize);
 static size_t max(size_t x, size_t y);
 
+
+team_t johnsonlacosssshusterl = {
+    .teamname = "johnsonlacosssshusterl", /* ID1+ID2 or ID1 */
+    .name1 = "Sam Johnson-Lacoss",   /* full name of first member */
+    .id1 = "johnsonlacosss",      /* login ID of first member */
+    .name2 = "Lev Shuster",    /* full name of second member (if any) */
+    .id2 = "shusterl",      /* login ID of second member */
+};
+
 /* UPDATED FOR EXPLICIT LINKED LIST
  * mm_init -- <What does this function do?>
  * <What are the function's arguments?>
@@ -120,26 +129,21 @@ int mm_init(void) {
         return -1;
 
     PUT(heap_start, (size_t) PADD(heap_start, MIN_B_SIZE));                        /* alignment padding set to the pointer to the first availble block (padding+prologue+header of the first block)*/
-    
+    PUT(heap_start, (size_t) 0);
+
+
     PUT(PADD(heap_start, WSIZE), PACK(OVERHEAD, 1));  /* prologue header */ // sets header after empty space
     PUT(PADD(heap_start, DSIZE), PACK(OVERHEAD, 1));  /* prologue footer */
     PUT(PADD(heap_start, WSIZE + DSIZE), PACK(0, 1));   /* epilogue header */
 
     heap_start = PADD(heap_start, DSIZE); /* start the heap at the (size 0) payload of the prologue block */
     
-    print_heap();
-
     /* Extend the empty heap with a free block of CHUNKSIZE bytes */
     if (extend_heap(CHUNKSIZE / WSIZE) == NULL)
         return -1;
 
-    printf("got to the end of extend heap 2x \n");
-
     PUT(PTR_NEXT_PTR(NEXT_PTR(PSUB(heap_start, DSIZE))), (size_t) 0); // put 0 @ the first free block 'next' pointer
     PUT(PTR_PREV_PTR(NEXT_PTR(PSUB(heap_start, DSIZE))), (size_t) 0); // put 0 @ the first free block 'next' pointer
-
-    print_heap();
-
     return 0;
 }
 
@@ -150,15 +154,16 @@ int mm_init(void) {
  * <Are there any preconditions or postconditions?>
  */
 void *mm_malloc(size_t size) {
-    printf("\n\nstarting to malloc\n");
+    printf("\nmalloc \n");    
+    print_linked_list();
     size_t asize;      /* adjusted block size */
     size_t extendsize; /* amount to extend heap if no fit */
     char *bp;
 
     /* Ignore spurious requests */
-    if (size <= 0)
+    if (size <= 0){ 
         return NULL;
-
+    }
     /* Adjust block size to include overhead and alignment reqs. */
     if (size <= DSIZE) {
         asize = DSIZE + OVERHEAD;
@@ -169,24 +174,21 @@ void *mm_malloc(size_t size) {
 
     /* Search the free list for a fit */
     if ((bp = find_fit(asize)) != NULL) {
-        printf("in malloc if statment\n");
-        print_linked_list();
+        printf("FIND FIT SUCCESS\n");
         place(bp, asize);
-        print_heap();
-        printf("\n\nfinished to malloc\n");
         return bp;
     }
-
     /* No fit found. Get more memory and place the block */
     extendsize = max(asize, CHUNKSIZE);
-    if ((bp = extend_heap(extendsize / WSIZE)) == NULL)
+    if ((bp = extend_heap(extendsize / WSIZE)) == NULL){
         return NULL;
+    }
 
-    printf("about to start second place \n");
-    print_heap();
+    printf("FIND FIT FAILED. EXTEND_HEAP CALLED\n");
     place(bp, asize);
-    printf("\n\nfinished to malloc\n");
-
+    
+    printf("malloc done \n");
+    print_linked_list();
     return bp;
 }
 
@@ -199,7 +201,7 @@ void *mm_malloc(size_t size) {
  * from malloc 
  */
 void mm_free(void *bp) {
-    printf("\nstarting to free\n");
+    printf("free\n");
     // Calculate what the header/footer would be unallocated:
     size_t newhead = GET_SIZE(HDRP(bp)); // size_t is meant to functinoally be an unsigned long
     newhead = PACK(newhead, 0); // masking: ... & (~0xf)   //TODO turn into bitwise operation or find out about decrement operator (--)
@@ -215,9 +217,6 @@ void mm_free(void *bp) {
     PUT(PTR_NEXT_PTR(bp), (size_t) second); // set bp ll_next to current first item
     PUT(PTR_PREV_PTR(bp), (size_t) 0); // set bp previous to equal 0 cast as something
     PUT(padding, (size_t) bp); // set current first item in linked list to be the next value of bp
-   
-    printf("\nfinished to free\n");
-
 }
 
 /* The remaining routines are internal helper routines */
@@ -230,49 +229,52 @@ void mm_free(void *bp) {
  * Returns nothing
  * <Are there any preconditions or postconditions?>
  */
-static void place(void *bp, size_t asize) { // 'asize' is just the size of the payload + head/foot + padding O
-    printf("\n\nstarting to place\n");
+static void place(void *bp, size_t asize) { // 'asize' is just the size of the payload + head/foot + padding O        
+    printf("started place\n");
     print_linked_list();
-        
-    size_t unalloc_size = GET_SIZE(HDRP(bp)) - asize; // size of unallocated remainder - used for splitting
+    size_t unalloc_size = GET_SIZE(HDRP(bp)) - asize; //PSUB((char*) GET_SIZE(HDRP(bp)), (char*) asize); // size of unallocated remainder - used for splitting
     size_t header_value = PACK(asize, 1); //double check that this should be size_t// masking: ... & ((~0)-1) 
+    /* setting prev and next linked list items */
     size_t* prev = (size_t*) PREV_PTR(bp);
     size_t* next = (size_t*) NEXT_PTR(bp);  
-    // Setting Header/Footer values for 
+    // Setting Header/Footer values for newly-allocated block
     PUT(HDRP(bp), header_value); // Update header
-    PUT(FTRP(bp), header_value);
-    // removing the block from the linked list:
+    PUT(FTRP(bp), header_value); // Update footer
+    printf("mismatch in place 0: %i\n", ((GET_SIZE(HDRP(bp)) != 0)));
 
     // // SPLITTING:
     if (unalloc_size > 0) {
-        printf("decided that splitting is necessary\n");
         size_t* unalloc_blk = (size_t*) NEXT_BLKP(bp);
-        PUT(HDRP(unalloc_blk), unalloc_size); // Update header
-        PUT(FTRP(unalloc_blk), unalloc_size); // Update footer
+        PUT(HDRP(unalloc_blk), (size_t) unalloc_size); // Update header        
+        PUT(FTRP(unalloc_blk), (size_t) unalloc_size); // Update footer
+        printf("mismatch in header/footer (place 2): %i\n", (int) (HDRP(bp) != PSUB(FTRP(bp), (asize-8))));    
+
         
         // blk points outwards
-        PUT(PTR_PREV_PTR(unalloc_blk), (size_t) prev);
-        PUT(PTR_NEXT_PTR(unalloc_blk), (size_t) next);
+        PUT(PTR_PREV_PTR(unalloc_blk), (size_t) prev); // prev pointer
+        PUT(PTR_NEXT_PTR(unalloc_blk), (size_t) next); // next pointer
         
-        // makes neibors in linked list point to unallocated portion of the newly split block
-        if (prev){ // if previous is not null update previous value
+        // makes neighbors in linked list point to unallocated portion of the newly split block
+        if (prev) { // if previous is not NULL update previous value
             PUT(PTR_NEXT_PTR(prev), (size_t) unalloc_blk); // set the 'next' pointer of the previous block
-        }
+        } else { // if the previous item *is* NULL
+            PUT(PSUB(heap_start, 16), (size_t) unalloc_blk); // heap start pointer now jumps forward to next item in ll 
+            }
         if (next) { // if next can be set (non-NULL)
             PUT(PTR_PREV_PTR(next), (size_t) unalloc_blk); // set the 'prev' pointer of the next block
         }
-    } else {
-        printf("decided that splitting is not necessary\n");
-        if (!next) {
-            PUT(PTR_NEXT_PTR(prev), (size_t) 0);
-        } if (!prev) {
-            PUT(PTR_PREV_PTR(next), (size_t) 0);
-
-            
-        } else if ((prev != NULL) && (next != NULL)) {
-            PUT(PTR_PREV_PTR(next), (size_t)prev);
-            PUT(PTR_NEXT_PTR(prev), (size_t)next);
-        }
+    } 
+    else { // Don't split
+        if (!next) { // bp @ end
+            PUT(PTR_NEXT_PTR(prev), (size_t) 0); // prev jumps to NULL
+        } 
+        if (!prev) { // bp at start
+            PUT(PTR_PREV_PTR(next), (size_t) 0); // next jumps backward to NULL
+ 
+        } else if (next != NULL) { // if in middle
+            PUT(PTR_PREV_PTR(next), (size_t)prev); // next jumps backward to prev
+            PUT(PTR_NEXT_PTR(prev), (size_t)next); // prev jumps forward to next
+        } 
 
         /* orignial thinking
         void* unalloc_blk = NEXT_BLKP(bp);
@@ -283,28 +285,27 @@ static void place(void *bp, size_t asize) { // 'asize' is just the size of the p
         PUT(PTR_PREV_PTR(NEXT_PTR(unalloc_blk)), (size_t) unalloc_blk);
         */
     }
-    print_heap();
     printf("finished place\n");
+    print_linked_list();
 }
 
 static void linked_list_coalesce_helper(void *bp) {
-    printf("\n\nstarting to coalesce the linked list\n");
     void* next = NEXT_BLKP(bp); // next block, physically
     void* prev = PREV_BLKP(bp); // previous block, physically
     void* previous_header = HDRP(prev); // Make a pointer to the previous header
     void* next_header = HDRP(next); // Make a pointer to the next header
-    print_heap();
+    printf("mismatch in coalesce 1: %i\n", ((GET_SIZE(HDRP(bp)) != 0)));
     
-    /* if: (previous exists and unalloc) and (next exists and unalloc) */
-    if ( (GET(previous_header) && !GET_ALLOC(previous_header)) && (GET(next_header) && !GET_ALLOC(next_header)) ) {
+    if ( (GET(previous_header) && !GET_ALLOC(previous_header)) && (GET(next_header) && !GET_ALLOC(next_header)) ) { /* if: (previous exists and unalloc) and (next exists and unalloc) */
+        printf("NOT WANTED FOR FIRST: hit the if previous exists and unalloc and next exists and is unalloc");
+        printf("mismatch in coalesce 2: %i\n", ((GET_SIZE(HDRP(bp)) != 0)));
         void* ll_next = (void*) NEXT_PTR(next); // next linked list item from 'next'
         void* ll_prev = (void*) PREV_PTR(next); // previous linked list item from 'next'
-        printf("prev unalloc and next unalloc\n");
-        print_heap();
         /* if-statements to catch edge cases */
         if (!ll_prev) { // if 'next' is at the start of ll
             PUT(PTR_PREV_PTR(ll_next), 0); // next item in ll now jumps backward to NULL
             PUT((size_t*)PTR_NEXT_PTR((size_t*) PSUB(heap_start, 16)), (size_t) ll_next); // heap start pointer now jumps forward to next item in ll
+            printf("mismatch in coalesce 3: %i\n", ((GET_SIZE(HDRP(bp)) != 0)));
 
         } else if (!ll_next) { // if 'next' is at the end of ll
             PUT((size_t*) PTR_PREV_PTR(ll_prev), 0); // set the prev item in the linked list to be the last item
@@ -312,10 +313,10 @@ static void linked_list_coalesce_helper(void *bp) {
             PUT((size_t*) PTR_NEXT_PTR(ll_prev), (size_t) NEXT_PTR(ll_next)); // ll_prev now jumps forward directly to ll_next 
             PUT((size_t*) PTR_PREV_PTR(ll_next), (size_t) PREV_PTR(ll_next)); // ll_next now jumps backward directly to ll_prev
         }
-    /* if: (next exists and is unalloc) */
-    } else if (GET(next_header) && !GET_ALLOC(next_header)) { 
-        printf("next unalloc ONLY\n");
-        print_heap();
+    print_linked_list();
+
+    } else if (GET(next_header) && !GET_ALLOC(next_header)) { /* if: (next exists and is unalloc) */
+    printf("NOT WANTED FOR FIRST: next exists and unalloc\n");
         size_t* ll_next = (size_t*) NEXT_PTR(next); // next linked list item
         size_t* ll_prev = (size_t*) PREV_PTR(next); // prev linked list item
 
@@ -325,6 +326,8 @@ static void linked_list_coalesce_helper(void *bp) {
             PUT((size_t*) PTR_NEXT_PTR(bp), (size_t) ll_next); // bp now jumps forward to next ll item
             /* setting ll_next's value */
             PUT((size_t*) PTR_PREV_PTR(ll_next), (size_t) bp); // next ll item now jumps backward to bp
+            print_linked_list();
+
 
         } else if (!ll_next) { // if 'next' is at the end
             /* setting bp's values */
@@ -332,6 +335,8 @@ static void linked_list_coalesce_helper(void *bp) {
             PUT((size_t*) PTR_PREV_PTR(bp), (size_t) ll_prev); // bp now jumps backward to the previous linked-list item
             /* setting ll_prev's value */
             PUT((size_t*) PTR_NEXT_PTR(ll_prev), (size_t) bp); // previous linked-list item now jumps to bp
+            print_linked_list();
+
         } else { // if 'next' is in the middle
             /* setting bp's values */
             PUT((size_t*) PTR_PREV_PTR(bp), (size_t) ll_prev); // bp now jumps backward to prev ll item
@@ -339,38 +344,35 @@ static void linked_list_coalesce_helper(void *bp) {
             /* setting ll_prev and ll_next values */
             PUT((size_t*) PTR_NEXT_PTR(ll_prev), (size_t) bp); // previous ll item now jumps forward to bp
             PUT((size_t*) PTR_PREV_PTR(ll_next), (size_t) bp); // next ll item now jumps backward to bp
+            print_linked_list();
+
         }      
-    } else { //add only current block to the linked list
-        printf("neither side unalloc\n");
-        print_heap();
+    } else { /* add only current block to the linked list */
+        printf(" :) WANTED: hit if this will be the first item in the lined list");
+
         size_t* start = (size_t*) PSUB(heap_start, DSIZE); // value that points to first ll item
-        size_t* second_item = (size_t*) NEXT_PTR(start); // get the old first item
+        size_t* second_item = (size_t*) NEXT_PTR(start); // get the old first item; will be 0 if emptty
         /* link bp and second item in the ll */
-        printf("set start and second item\n");
-        print_heap();
-        PUT((size_t*) PTR_NEXT_PTR(bp), (size_t) second_item); // set bp's next item to be the second item
-        printf("put next ptr\n");
-        print_heap();
+        print_linked_list();
 
-        PUT((size_t*) PTR_PREV_PTR(second_item), (size_t) bp); // set the second item's previous value to bp
-        /* link bp and first item pointer */
-        printf("put prev ptr\n");
-        print_heap();
-        
-        PUT(PTR_PREV_PTR(bp), (size_t) 0); // set bp's previous value to NULL
-        printf("nullified bp's prev val\n");
-        print_heap();
-        PUT((size_t*) start, (size_t) bp); // put bp as start's value  
-        printf("put bp as start's value\n");
-        print_heap();
+        if (!GET(start)) { // bp will be placed at the start of an EMPTY linked list
+            printf("WANTED: hit the if padding doesn't point to anything\n");
 
+            printf("linked list is empty when we coalesce\n");
+            PUT(PTR_NEXT_PTR(PSUB(heap_start, DSIZE)), (size_t) bp); // heap start now jumps to bp
+            PUT(PTR_NEXT_PTR(bp), 0);
+        } else { // bp will be placed at the start of a NON-EMPTY linked list
+
+            printf("NOT WANTED: linked list is not empty when we coalesce, we got a %ld\n", GET(start));
+            PUT((size_t*) PTR_NEXT_PTR(bp), (size_t) second_item); // set bp's next item to be the second item
+            PUT((size_t*) PTR_PREV_PTR(second_item), (size_t) bp); // set the second item's previous value to bp
+            /* link bp and first item pointer */
+
+            PUT(PTR_PREV_PTR(bp), (size_t) 0); // set bp's previous value to NULL
+            PUT((size_t*) start, (size_t) bp); // put bp as start's value 
+        } 
+    print_linked_list();
     }
-    print_heap();
-
-    printf("\n\nfinished coalescing the linked list\n");
-
-    // print_heap();
-    // print_linked_list();
 }
 
 /*
@@ -381,36 +383,40 @@ static void linked_list_coalesce_helper(void *bp) {
  * * bp must point to a block that is already free
  */
 static void *coalesce(void *bp) {
+    printf("started coalesce\n");
+    print_linked_list();
+    if (GET(PSUB(heap_start, DSIZE))) {
+        printf("mismatch in coalesce 1 (not this call's fault): %i\n", ((GET_SIZE(HDRP(bp)) != 0) || !(GET_ALLOC(HDRP(bp))))); 
+    }
     // coalesce the linked list without effecting the blocks:
     linked_list_coalesce_helper(bp); // updates the linked-list pieces
-    printf("\ncoalescing (physical)\n");
+
+    printf("finished linked list coalescce helper\n");
+    print_linked_list();
 
     void* retval = bp;
     //CHECKING PREVIOUS:
-    printf("checking previous block\n");
     void* previous_header = HDRP(PREV_BLKP(bp)); // Make a pointer to the previous header
-    printf("prev header value: %p\n", previous_header);
     if (!GET_ALLOC(previous_header)) { // if previous is unallocated:
-        printf("got into if statment\n");
         retval = PREV_BLKP(bp); // set the retval to the previous block pointer
         size_t totalsize = GET_SIZE(previous_header) + GET_SIZE(HDRP(bp));
-        print_heap();
-        printf("got total size \n");
         PUT(HDRP(retval), totalsize);
-        printf("header updated\n");
         PUT(FTRP(retval), totalsize);
-        printf("footer updated\n");
-    } 
+        printf("header: %ld, footer: %ld\n", GET(HDRP(retval)), GET(FTRP(retval)));
+    }
+    print_linked_list();
     // CHECKING NEXT:
-    printf("checking next block");
     void* next_header = HDRP(NEXT_BLKP(bp)); // Make a pointer to the next header
     if (!GET_ALLOC(next_header)) { // if next is unallocated:
-        // we don't need to change the retval here
+        printf("starting to check next in coalescce \n");
+        print_linked_list();        
         size_t totalsize = GET_SIZE(next_header) + GET_SIZE(HDRP(bp));
         PUT(HDRP(retval), totalsize);
         PUT(FTRP(retval), totalsize);
     }
-    printf("finished coalescing (physical)\n");
+    /* PRINTING LL */
+    printf("finished coalescce \n");
+    print_linked_list();
     return retval;
 }
 
@@ -420,22 +426,17 @@ static void *coalesce(void *bp) {
  * find_fit - Find a fit for a block with asize bytes
  */
 static void *find_fit(size_t asize) {
-    printf("\nfinding fit\n");
     /* search from the start of the free list to the end */
     // for (char *cur_block = heap_start; GET_SIZE(HDRP(cur_block)) > 0; cur_block = NEXT_BLKP(cur_block)) {
     //     if (!GET_ALLOC(HDRP(cur_block)) && (asize <= GET_SIZE(HDRP(cur_block))))
     //         return cur_block;
     // }
-
-    for (char *cur_block = (char*) NEXT_PTR(PSUB(heap_start, DSIZE)); PTR_NEXT_PTR(cur_block) != NULL; cur_block = (char *) NEXT_PTR(cur_block)) {
+    for (char *cur_block = (char*) NEXT_PTR(PSUB(heap_start, DSIZE)); (size_t) cur_block != (size_t) 0; cur_block = (char *) NEXT_PTR(cur_block)) {
         // heap_start is set to the blk ptr of the prologue, so we do (heap_start-16) to get to the padding at the front
         if (asize <= GET_SIZE(HDRP(cur_block))) { // Since this is an explicit linked list containing ONLY free items, checking for freedom would be redundant
-            printf("fit found: ");
-            print_block(cur_block);
             return cur_block;
         }
     }
-    printf("fit not found...\n");
     return NULL;  /* no fit found */
 }
 
@@ -443,8 +444,8 @@ static void *find_fit(size_t asize) {
  * extend_heap - Extend heap with free block and return its block pointer
  */
 static void *extend_heap(size_t words) {
-    printf("\n\nstarting to extend\n");
-
+    printf("\n\n\nextend_heap by %ld words\n", words);
+    print_linked_list();
     char *bp;
     size_t size;
 
@@ -452,21 +453,17 @@ static void *extend_heap(size_t words) {
     size = words * WSIZE;
     if (words % 2 == 1)
         size += WSIZE;
-    printf("extending heap to %zu bytes\n", mem_heapsize());
     if ((long)(bp = mem_sbrk(size)) < 0)
         return NULL;
 
 
-    print_heap();
     /* Initialize free block header/footer and the epilogue header */
     PUT(HDRP(bp), PACK(size, 0));         /* free block header */
     PUT(FTRP(bp), PACK(size, 0));         /* free block footer */
     PUT(HDRP(NEXT_BLKP(bp)), PACK(0, 1)); /* new epilogue header */
-    printf("finished header and footer\n");
-    print_heap();
+    print_block(bp);
     /* Coalesce if the previous block was free */
-    printf("coalesce value is %p\n", coalesce(bp)); //delete line in final product 
-    printf("\n\nfinished extending the heap\n");
+    printf("finised exstend heap\n\n\n");
     return coalesce(bp);
 }
 
