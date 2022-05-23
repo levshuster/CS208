@@ -123,6 +123,7 @@ team_t johnsonlacosssshusterl = {
  * <Are there any preconditions or postconditions?>
  */
 int mm_init(void) {
+    assert(check_heap(__LINE__));
     /* create the initial empty heap */
     if ((heap_start = mem_sbrk(4 * WSIZE)) == NULL)
         return -1;
@@ -144,6 +145,7 @@ int mm_init(void) {
 
     PUT(PTR_NEXT_PTR(NEXT_PTR(PSUB(heap_start, DSIZE))), (size_t) 0); // put 0 @ the first free block 'next' pointer
     PUT(PTR_PREV_PTR(NEXT_PTR(PSUB(heap_start, DSIZE))), (size_t) 0); // put 0 @ the first free block 'next' pointer
+    assert(check_heap(__LINE__));
     
     return 0;
 }
@@ -155,6 +157,7 @@ int mm_init(void) {
  * <Are there any preconditions or postconditions?>
  */
 void *mm_malloc(size_t size) {
+    assert(check_heap(__LINE__));
     printf("malloc \n");    
     print_linked_list();
     size_t asize;      /* adjusted block size */
@@ -163,6 +166,7 @@ void *mm_malloc(size_t size) {
 
     /* Ignore spurious requests */
     if (size <= 0){ 
+        assert(check_heap(__LINE__));
         return NULL;
     }
     /* Adjust block size to include overhead and alignment reqs. */
@@ -177,19 +181,19 @@ void *mm_malloc(size_t size) {
     if ((bp = find_fit(asize)) != NULL) {
         // printf("FIND FIT SUCCESS\n");
         place(bp, asize);
+        assert(check_heap(__LINE__));
         return bp;
     }
     /* No fit found. Get more memory and place the block */
     extendsize = max(asize, CHUNKSIZE);
     if ((bp = extend_heap(extendsize / WSIZE)) == NULL){
+        assert(check_heap(__LINE__));
         return NULL;
     }
 
-    // printf("FIND FIT FAILED. EXTEND_HEAP CALLED\n");
     place(bp, asize);
     
-    // printf("malloc done \n");
-    // print_linked_list();
+    assert(check_heap(__LINE__));
     return bp;
 }
 
@@ -202,6 +206,7 @@ void *mm_malloc(size_t size) {
  * from malloc 
  */
 void mm_free(void *bp) {
+    assert(check_heap(__LINE__));
     printf("free\n");
     // Calculate what the header/footer would be unallocated:
     size_t newhead = GET_SIZE(HDRP(bp)); // size_t is meant to functinoally be an unsigned long
@@ -219,6 +224,7 @@ void mm_free(void *bp) {
     PUT(PTR_NEXT_PTR(bp), (size_t) second); // set bp ll_next to current first item
     PUT(PTR_PREV_PTR(bp), (size_t) 0); // set bp previous to equal 0 cast as something
     PUT(padding, (size_t) bp); // set current first item in linked list to be the next value of bp
+    assert(check_heap(__LINE__));
 }
 
 /* The remaining routines are internal helper routines */
@@ -231,7 +237,8 @@ void mm_free(void *bp) {
  * Returns nothing
  * <Are there any preconditions or postconditions?>
  */
-static void place(void *bp, size_t asize) { // 'asize' is just the size of the payload + head/foot + padding O        
+static void place(void *bp, size_t asize) { // 'asize' is just the size of the payload + head/foot + padding O 
+    assert(check_heap(__LINE__));       
     printf("started place\n");
     print_linked_list();
     size_t unalloc_size = GET_SIZE(HDRP(bp)) - asize;
@@ -282,9 +289,11 @@ static void place(void *bp, size_t asize) { // 'asize' is just the size of the p
     }
     printf("finished place\n");
     print_linked_list();
+    assert(check_heap(__LINE__));
 }
 
 static void linked_list_coalesce_helper(void *bp) {
+    assert(check_heap(__LINE__));
     void* next = NEXT_BLKP(bp); // next block, physically
     void* prev = PREV_BLKP(bp); // previous block, physically
     void* previous_header = HDRP(prev); // Make a pointer to the previous header
@@ -366,6 +375,7 @@ static void linked_list_coalesce_helper(void *bp) {
             PUT((size_t*) start, (size_t) bp); // put bp as start's value 
         } 
     print_linked_list();
+    assert(check_heap(__LINE__));
     }
 }
 
@@ -377,6 +387,7 @@ static void linked_list_coalesce_helper(void *bp) {
  * * bp must point to a block that is already free
  */
 static void *coalesce(void *bp) {
+    assert(check_heap(__LINE__));
     printf("started coalesce\n");
     print_linked_list();
     if (GET(PSUB(heap_start, DSIZE))) {
@@ -411,6 +422,7 @@ static void *coalesce(void *bp) {
     /* PRINTING LL */
     printf("finished coalescce \n");
     print_linked_list();
+    assert(check_heap(__LINE__));
     return retval;
 }
 
@@ -420,12 +432,15 @@ static void *coalesce(void *bp) {
  * find_fit - Find a fit for a block with asize bytes
  */
 static void *find_fit(size_t asize) {
+    assert(check_heap(__LINE__));
     for (char *cur_block = (char*) NEXT_PTR(PSUB(heap_start, DSIZE)); (size_t) cur_block != (size_t) 0; cur_block = (char *) NEXT_PTR(cur_block)) {
         // heap_start is set to the blk ptr of the prologue, so we do (heap_start-16) to get to the padding at the front
         if (asize <= GET_SIZE(HDRP(cur_block))) { // Since this is an explicit linked list containing ONLY free items, checking for freedom would be redundant
+            assert(check_heap(__LINE__));
             return cur_block;
         }
     }
+    assert(check_heap(__LINE__));
     return NULL;  /* no fit found */
 }
 
@@ -433,6 +448,7 @@ static void *find_fit(size_t asize) {
  * extend_heap - Extend heap with free block and return its block pointer
  */
 static void *extend_heap(size_t words) {
+    assert(check_heap(__LINE__));
     printf("\n\n\nextend_heap by %ld words\n", words);
     print_linked_list();
     char *bp;
@@ -453,6 +469,7 @@ static void *extend_heap(size_t words) {
     print_block(bp);
     /* Coalesce if the previous block was free */
     printf("finised exstend heap\n\n\n");
+    assert(check_heap(__LINE__));
     return coalesce(bp);
 }
 
