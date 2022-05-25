@@ -443,12 +443,12 @@ static void *coalesce(void *bp) {
     assert(check_heap(__LINE__));
     printf("started coalesce\n");
     print_linked_list();
-    // coalesce the linked list without effecting the blocks:
+        void* previous_header = HDRP(PREV_BLKP(bp)); // Make a pointer to the previous header
+        void* next_header = HDRP(NEXT_BLKP(bp)); // Make a pointer to the next header
 
     size_t* retval = bp;
     //CHECKING PREVIOUS:
     assert(check_heap(__LINE__));
-    void* previous_header = HDRP(PREV_BLKP(bp)); // Make a pointer to the previous header
     print_heap();
     print_linked_list();
     if (!GET_ALLOC(previous_header)) { // if previous is unallocated:
@@ -463,7 +463,6 @@ static void *coalesce(void *bp) {
     }
     print_linked_list();
     // CHECKING NEXT:
-    void* next_header = HDRP(NEXT_BLKP(bp)); // Make a pointer to the next header
     if (!GET_ALLOC(next_header)) { // if next is unallocated:
         /* remove ONLY the next item */
         ll_remove((size_t*) NEXT_PTR(retval));
