@@ -352,8 +352,8 @@ static void *coalesce(void *bp) {
     printf("started coalesce\n");
     print_linked_list();
 
-    // void* prev = PREV_BLKP(bp);
-    // void* next = NEXT_BLKP(bp);
+    void* prev = PREV_BLKP(bp);
+    void* next = NEXT_BLKP(bp);
     void* previous_header = HDRP(PREV_BLKP(bp)); // Make a pointer to the previous header
     void* next_header = HDRP(NEXT_BLKP(bp)); // Make a pointer to the next header
     size_t totalsize; // total size, used later
@@ -365,7 +365,7 @@ static void *coalesce(void *bp) {
         totalsize = GET_SIZE(HDRP(prev)) + GET_SIZE(HDRP(bp)) + GET_SIZE(HDRP(next)); // size of: prev + middle + next
         //update header and footer
         PUT(previous_header, totalsize); // Update header
-        PUT(next, totalsize); // Update footer
+        PUT(FTRP(prev), totalsize); // Update footer
 
     } else if (!GET_ALLOC(previous_header)) { // left free
         /* we point to only the leftmost, so remove middle */
@@ -374,7 +374,7 @@ static void *coalesce(void *bp) {
         //update header and footer
         totalsize = GET_SIZE(HDRP(prev)) + GET_SIZE(HDRP(bp)); // size of: prev + middle
         PUT(previous_header, totalsize); // Update header
-        PUT(bp, totalsize); // Update footer
+        PUT(FTRP(prev), totalsize); // Update footer
 
     } else if (!GET_ALLOC(next_header)) { // right free
         /* point to only leftmost, so remove right */
@@ -382,8 +382,8 @@ static void *coalesce(void *bp) {
 
         //update header and footer
         totalsize = GET_SIZE(HDRP(bp)) + GET_SIZE(HDRP(next)); // size of: middle + next
-        PUT(bp, totalsize); // Update footer
-        PUT(next_header, totalsize); // Update header
+        PUT(HDRP(bp), totalsize); // Update footer
+        PUT(FTRP(bp), totalsize); // Update header
 
 
     } else { // neither free
