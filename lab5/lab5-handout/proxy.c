@@ -64,32 +64,20 @@ void cache_insert(char *url, char *item, size_t size) {
  */
 void handle_request(int connfd) { //connfd is the connection file descriptor
 
-    /* When started, your proxy should listen for incoming connections on a port whose number will be specified on the 
-    command line. 
+    /* 
     
     Once a connection is established, your proxy should read the entirety of the request from the client 
     and parse the request. 
     
-    It should determine whether the client has sent a valid HTTP request; 
-    
-    if so, it can then establish its own connection to the appropriate web server then 
     request the object the client specified. 
     
     Finally, your proxy should read the server’s response and forward it to the client. */
 
-    /* The starter code in main takes care of listening on the port passed in on the command line. 
-    
-    When it receives a connection, it creates a new socket and passes the associated file descriptor to handle_request. 
-    
+    /* 
     Your code in handle_request should use the RIO functions to read the request from the client. 
-
     Once you have read and parsed the first line of the request from the client, you will need to open a socket to 
     the server. 
-    
-    Use the provided Open_clientfd function for this. 
-    
-    It takes two strings arguments, the hostname and 
-    the port, and returns a file descriptor. */
+    */
 
 
 
@@ -130,19 +118,21 @@ void handle_request(int connfd) { //connfd is the connection file descriptor
     // if(!sscanf(url_trim, ":%s", port))
     //     port = "80";
 
-    // SUPER FUCKIN RISKY:
+    // SUPER RISKY:
     // set hostname
-    if(3 > sscanf(url_trim, "%s:%s/%s", hostname, port, resource)) { // if one of these things is missing
-        //the something's up: trigger emergency cases
-        if (2 > sscanf(url_trim, "%s:%s", hostname, port)) {
-            strncpy(port, DEFAULT_PORT, MAXLINE); // then the port must be '80' because not specified
-            if (2 > scanf(url_trim, "%s/%s", hostname, resource)) {
-                strncpy(hostname, url_trim, MAXLINE); // then the hostname is full string and resource is left to be NULL
+        if(3 > sscanf(url_trim, "%s:%s/%s", hostname, port, resource)) { // if one of these things is missing
+            //the something's up: trigger emergency cases
+            if (2 > sscanf(url_trim, "%s:%s", hostname, port)) {
+                strncpy(port, DEFAULT_PORT, MAXLINE); // then the port must be '80' because not specified
+                if (2 > scanf(url_trim, "%s/%s", hostname, resource)) {
+                    strncpy(hostname, url_trim, MAXLINE); // then the hostname is full string and resource is left to be NULL
+                }
             }
         }
-    }
-    //if so, it can then establish its own connection to the appropriate web server then 
+        //if so, it can then establish its own connection to the appropriate web server then 
     //request the object the client specified. 
+    
+    
     /* Use the provided Open_clientfd function for this. 
      * It takes two strings arguments, the hostname and the port, and returns a file descriptor. */
     int fd_for_web_server = Open_clientfd(hostname, port);
@@ -151,7 +141,10 @@ void handle_request(int connfd) { //connfd is the connection file descriptor
     // send request
     // TODO may need to remove first line because we handle the request line two commands earlier
     Rio_readinitb(&rio_for_web_server, fd_for_web_server); //initalised the connection to read the request
-    Rio_writen(&rio_for_web_server, buf, MAXLINE);
+    
+    Rio_writen(fd_for_web_server, buf, MAXLINE);// ask if should be maxline or strlen(buf) may be the same thing
+
+    
     // if(!Rio_writen(&rio_for_web_server, buf, MAXLINE)){
     //     printf("ERROR: bad sending request (write)\n");
     //     return
@@ -211,4 +204,3 @@ int main(int argc, char **argv) {
         handle_request(connfd);
     }
 }
-
