@@ -76,8 +76,8 @@ void handle_request(int connfd) { //connfd is the connection file descriptor
 
     // read and parse request
     //the initial part of the doit function in tiny/tiny.c
-    char buf[MAXLINE], method[MAXLINE], url[MAXLINE], version[MAXLINE], url_trim[MAXLINE], port[MAXLINE], resource[MAXLINE]; 
-    char hostname[MAXLINE];
+    char buf[MAXLINE], method[MAXLINE], url[MAXLINE], version[MAXLINE], url_trim[MAXLINE]; 
+    char hostname[MAXLINE], port[MAXLINE], resource[MAXLINE];
     rio_t rio;
     
     /* Read request line and headers */
@@ -107,45 +107,25 @@ void handle_request(int connfd) { //connfd is the connection file descriptor
     }    
     printf("scanned url trim: %s\n", url_trim);
 
-    // //set resource, left NULL if none exists
-    // sscanf(url_trim, "/%s", resource);
-
-    // // checking for port, if port not specified use port 80
-    // if(!sscanf(url_trim, ":%s", port))
-    //     port = "80";
-
-    // SUPER RISKY:
     // set resource
-    char *temp = strchr(url_trim, '/');
+    char* temp = strchr(url_trim, '/');
     if (temp) {
-        strncpy(resource, temp, 100);
+        strncpy(resource, temp+1, 100);
         *temp = '\0';
     } else {
 	    strncpy(resource, "index.html", strlen("index.html")+1); //TODO : double checck this +1!!!!
     }
     // set port
-    *temp = strchr(url_trim, ':');
+    temp = strchr(url_trim, ':');
     if (temp) {
-        strncpy(port, temp, 100);
+        strncpy(port, temp+1, 100);
         *temp = '\0';
     } else {
-        strncpy(port, DEFAULT_PORT);
+        strncpy(port, DEFAULT_PORT, strlen(DEFAULT_PORT)+1);
     }
     // set hostname
     strncpy(hostname, url_trim, strlen(url_trim)+1); // for readability
 
-    // if(3 > sscanf(url_trim, "%s:%s/%s", hostname, port, resource)) { // if one of these things is missing
-    //     printf("missing %i items\n", 3 - check);
-    //     //the something's up: trigger emergency cases
-    //     if (2 > sscanf(url_trim, "%s:%s", hostname, port)) {
-    //         printf("no port\n");
-    //         strncpy(port, DEFAULT_PORT, MAXLINE); // then the port must be '80' because not specified
-    //         if (2 > scanf(url_trim, "%s/%s", hostname, resource)) {
-    //             printf("no resource, only hostname\n");
-    //             strncpy(hostname, url_trim, MAXLINE); // then the hostname is full string and resource is left to be NULL
-    //         }
-    //     }
-    // }
     printf("host: %s  |  port: %s  |  resource: %s\n", hostname, port, resource);
     //if so, it can then establish its own connection to the appropriate web server then 
     //request the object the client specified. 
@@ -154,44 +134,47 @@ void handle_request(int connfd) { //connfd is the connection file descriptor
     /* Use the provided Open_clientfd function for this. 
      * It takes two strings arguments, the hostname and the port, and returns a file descriptor. */
     int fd_server = Open_clientfd(hostname, port);
+//  int fd_server = Open_clientfd(hostname, port);
+
     rio_t rio_server;
-    // what is prxy sending?
-    // what is client getting back via curl?
-    // run in tiny, one with proxy, one in curl
+    printf("finised opening connection to server \n");
+    
 
     // send request
-    // TODO may need to remove first line because we handle the request line two commands earlier
-    Rio_readinitb(&rio_server, fd_server); //initalised the connection to read the request
-    printf("buf: %s\n", buf);
-    Rio_writen(fd_server, buf, strlen(buf));// TODO ask if this should be buffer
+    char buf2[MAXBUF];
+    printf("buf2: %s\n", buf2);
     
-    if (!Rio_readlineb(&rio_server, buf, MAXLINE)){//turn into test
-        printf("ERROR: Unable to make a connection using the webserver\n");
-        return;
-    }   
+    sprintf(buf2, "GET /%s HTTP/1.1\r\n", resource); 
+    Rio_writen(fd_server, buf2, strlen(buf2));
+    sprintf(buf2, "HOST: %s:%s\r\n", hostname, port); 
+    Rio_writen(fd_server, buf2, strlen(buf2));
+    sprintf(buf2, "\r\n"); //Accept: */*\r\n
+    Rio_writen(fd_server, buf2, strlen(buf2));
+    
+    printf("sent request\n");
+	
+
+    Rio_readinitb(&rio_server, fd_server); //initalised the connection to read the request
+    printf("initialised read connection\n");
+    
     // what is proxy?
 
-    // if(!Rio_writen(&rio_server, buf, MAXLINE)){
-    //     printf("ERROR: bad sending request (write)\n");
-    //     return
-    // }
-
-
     // Finally, your proxy should read the server’s response and forward it to the client.
-    // Close(fd_server);   // TODO : ask if mixed buffered and non buffered
-    // Rio_readinitb(&rio_server, fd_server); //initalised the connection to read the request
-
     // Once a connection is established, your proxy should read the entirety of the request from the client 
     // and parse the request. 
-
+    printf("read response\n");
     printf("got a response\nthe returned buffer is %s\n", buf);
-    Rio_writen(connfd, buf, MAXLINE); //TODO write test for bad write
+    // Rio_readlineb(&rio_server, buf, strlen(buf));	
+    size_t n;
 
+    while ((n = Rio_readlineb(&rio_server, buf, MAXLINE)) != 0) {
+        Rio_writen(connfd, buf, n);
+    }
+
+    //Rio_writen(connfd, buf, MAXLINE); //TODO write test for bad write
+    Close(fd_server);
     Close(connfd);   // close the file; we're done with it
-    // if(!Rio_writen(&rio, buf, MAXLINE)){
-    //     printf("ERROR: bad write\n");
-    //     return
-    // }
+    
     // send request to server as we read it from client (think echo)
     // a request consists of a GET line and zero or more headers
     // a blank line indicates the end of the request headers
