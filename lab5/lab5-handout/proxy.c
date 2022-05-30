@@ -93,7 +93,8 @@ void cache_insert(char *url, char* header, char *item, size_t size) {
     strncpy(newitem->header, header, strlen(header)+1);
     // set content
     newitem->content = malloc(strlen(item)+1);
-    memcpy(newitem->content, item, size);
+    strncpy(newitem->content, item, size);
+    // memcpy(newitem->content, item, sizeof(item));
     // set size
     newitem->size = size;
     printf("\n\nthe size is set to %ld\n\n", size);
@@ -119,13 +120,12 @@ bool can_respond_with_cache(char *request_url, int connfd){
         }
     printf("fit found\n");
     /* Otherwise, write to the connfd and return true */
-    printf("the cached stuff is:\n%s%s", entry->header, entry->content);
-    printf("size of entry content: %ld\n", entry->size);
+    printf("the cached stuff is:\n%s\n\n%s", entry->header, entry->content);
+    // printf("\n\nsize of entry content: %ld\n", entry->size);
     // printf("header is %s\n", entry->header);
-    Rio_writen(connfd, entry->header, sizeof(entry->header)); // strlen(entry->header)+1
-    printf("finished displaying header\n");
+    Rio_writen(connfd, entry->header, strlen(entry->header)); // strlen(entry->header)+1
+    printf("\nfinished displaying header\n");
     Rio_writen(connfd, entry->content, entry->size);
-    printf("finished displaying content\n");
     return true;
 }
 
@@ -171,11 +171,11 @@ void handle_request(int connfd) { //connfd is the connection file descriptor
      * From here, we just need to see if we can find it in the cache
     */
     printf("url is %s\n", url);
-    // if (can_respond_with_cache(url, connfd)) {
-    //     printf("we can respond with cache\n");
-    //     Close(connfd);   // close the file; we're done with it
-    //     return;
-    // }
+    if (can_respond_with_cache(url, connfd)) {
+        printf("we can respond with cache\n");
+        Close(connfd);   // close the file; we're done with it
+        return;
+    }
     printf("not cached\n");
 
     // set resource
@@ -231,7 +231,7 @@ void handle_request(int connfd) { //connfd is the connection file descriptor
 
     // Read server type and append it to the headerr line
     n = Rio_readlineb(&rio_server, buf, MAXLINE); // second line: size
-    strcat(header, buf); // TOD may need to add \r\n 
+    strcat(header, buf); // TOD may need to add \r\n
     Rio_writen(connfd, buf, n);
 
     // Read content size
@@ -250,14 +250,10 @@ void handle_request(int connfd) { //connfd is the connection file descriptor
     strcat(header, buf);
     Rio_writen(connfd, buf, n);
 
-
-
     // \r\n
     n = Rio_readlineb(&rio_server, buf, MAXLINE); // third line: empty
-    strcat(header, buf);
     Rio_writen(connfd, buf, n);
-
-
+    strcat(header, buf);
 
     if(!sscanf(size, "Content-length: %s", size)){//makes sure usses http protical not https turn into test later
         printf("ERROR: unable to read size\n");
@@ -276,10 +272,16 @@ void handle_request(int connfd) { //connfd is the connection file descriptor
     // close the files; we're done with them
     Close(fd_server);
     Close(connfd);
-    printf("finished handle_request\n\n");
+    printf("_________finished handle_request_________\n\n");
 
 }
 
+void sigchld_handler(int sig)
+{ 
+    while (waitpid(-1, 0, WNOHANG) > 0)
+        ;
+    return;
+}
 int main(int argc, char **argv) {
     int listenfd, connfd;
     char hostname[MAXLINE], port[MAXLINE];
@@ -308,3 +310,39 @@ int main(int argc, char **argv) {
     }
     cache_free();
 }
+
+
+//concurency attmept:
+// int main(int argc, char **argv) {
+//     int listenfd, connfd;
+//     char hostname[MAXLINE], port[MAXLINE];
+//     socklen_t clientlen;
+//     struct sockaddr_storage clientaddr;
+//     cache_init();
+
+//     /* Check command line args */
+//     if (argc != 2) {
+//         fprintf(stderr, "usage: %s <port>\n", argv[0]);
+//         exit(1);
+//     }
+    
+//     Signal(SIGCHLD, sigchld_handler); //new line
+
+//     listenfd = Open_listenfd(argv[1]);
+//     while (1) {
+//         clientlen = sizeof(clientaddr);
+//         connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
+//         if(Fork() == 0){ // newline
+//             Close(listenfd);
+//             printf("Accepted connection from (%s, %s)\n", hostname, port);
+//             Getnameinfo((SA *)&clientaddr, clientlen, hostname, MAXLINE, port, MAXLINE, 0);
+//             // For Part III, replace this with code that creates and detaches a thread
+//             // or otherwise handles the request concurrently
+//             handle_request(connfd);
+//             Close(connfd);   /* Child closes connection with client */
+//             exit(0);  
+//         }
+
+//     }
+//     cache_free();
+// }
