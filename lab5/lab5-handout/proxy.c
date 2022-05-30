@@ -71,7 +71,7 @@ void cache_free() {
 cache_entry_t* cache_lookup(char *url) {
     cache_entry_t *cur = cache->head;
     while(cur) {
-        printf("compairing %s to %s", cur->url, url);
+        printf("comparing %s to %s", cur->url, url);
         if (strcmp(cur->url, url) == 0) {//FOR DUBUGGING : cur-> and * may not be what is needed here
             return cur;
         }
@@ -93,7 +93,7 @@ void cache_insert(char *url, char* header, char *item, size_t size) {
     strncpy(newitem->header, header, strlen(header)+1);
     // set content
     newitem->content = malloc(strlen(item)+1);
-    strncpy(newitem->content, item, strlen(item)+1);
+    memcpy(newitem->content, item, size);
     // set size
     newitem->size = size;
     printf("\n\nthe size is set to %ld\n\n", size);
@@ -119,10 +119,10 @@ bool can_respond_with_cache(char *request_url, int connfd){
         }
     printf("fit found\n");
     /* Otherwise, write to the connfd and return true */
-    printf("the cached stuff is:\n %s %s", entry->header, entry->content);
+    printf("the cached stuff is:\n%s%s", entry->header, entry->content);
     printf("size of entry content: %ld\n", entry->size);
     // printf("header is %s\n", entry->header);
-    Rio_writen(connfd, entry->header, sizeof(entry->header));
+    Rio_writen(connfd, entry->header, sizeof(entry->header)); // strlen(entry->header)+1
     printf("finished displaying header\n");
     Rio_writen(connfd, entry->content, entry->size);
     printf("finished displaying content\n");
@@ -159,8 +159,6 @@ void handle_request(int connfd) { //connfd is the connection file descriptor
         printf("ERROR: bad scan\n");
         return;
     }
-    // sscanf(buf, "%s %s %s", method, url, version);
-    printf("scanned request line: %s | %s | %s\n", method, url, version);
 
     // It should determine whether the client has sent a valid HTTP request; 
     // TODO check to make sure url has at least one . (either IP or top level domain)
@@ -173,11 +171,11 @@ void handle_request(int connfd) { //connfd is the connection file descriptor
      * From here, we just need to see if we can find it in the cache
     */
     printf("url is %s\n", url);
-    if (can_respond_with_cache(url, connfd)) {
-        printf("we can respond with cache\n");
-        Close(connfd);   // close the file; we're done with it
-        return;
-    }
+    // if (can_respond_with_cache(url, connfd)) {
+    //     printf("we can respond with cache\n");
+    //     Close(connfd);   // close the file; we're done with it
+    //     return;
+    // }
     printf("not cached\n");
 
     // set resource
@@ -221,7 +219,6 @@ void handle_request(int connfd) { //connfd is the connection file descriptor
     
     // Once a connection is established, your proxy should read the entirety of the request from the client 
     // and parse the request. 
-    printf("read response\n");
     size_t n;
     // Read header
     n = Rio_readlineb(&rio_server, buf, MAXLINE); // first line: header
@@ -231,7 +228,6 @@ void handle_request(int connfd) { //connfd is the connection file descriptor
     strncpy(header, buf, strlen(buf)+1);
 
     Rio_writen(connfd, buf, n);
-    printf("\nHEADER LINE | %s\n", header);
 
     // Read server type and append it to the headerr line
     n = Rio_readlineb(&rio_server, buf, MAXLINE); // second line: size
@@ -266,46 +262,20 @@ void handle_request(int connfd) { //connfd is the connection file descriptor
     if(!sscanf(size, "Content-length: %s", size)){//makes sure usses http protical not https turn into test later
         printf("ERROR: unable to read size\n");
         return;
-    }  
+    }
     char *ptr;
     size_t bytes_of_content= strtol(size, &ptr, 10);
         
-    printf("the final count is %ld\n", bytes_of_content);
     
-    char response[bytes_of_content];
-    // response[0] = '\0';
+    // Read and subsequently write to server:
+        char response[bytes_of_content];
+    Rio_readnb(&rio_server, response, bytes_of_content);
+    Rio_writen(connfd, response, bytes_of_content);
+    cache_insert(url, header, response, bytes_of_content); 
 
-    int i = 0;
-    int newcon = connfd;
-    printf("comparing %s to 'Content-type: text'\n", type);
-    if (0){ //!strcmp(type, "Content-type: text"
-        printf("Content-type: text\n");
-        while ((n = Rio_readlineb(&rio_server, buf, MAXLINE)) != 0) {
-            strcat(response, buf);
-        }
-
-    } else{
-        printf("content type is binary\n");
-        Rio_readnb(&rio_server, response, bytes_of_content);
-        // while ((n = Rio_readlineb(&rio_server, buf, MAXLINE)) != 0) {
-        //     memcpy( (void*) response, (void*) ((char*) buf + i),  n ); //do for final version | indexing with i
-        //     printf("length of line: %i | index i = %i\n", n, i);
-        //     i = i + n;
-        // }
-    }
-
-    
-    // n = Rio_readn(fd_server, buf, bytes_of_content);
-    // memcpy( (void*) response, (void*) buf, (size_t) bytes_of_content );
-
-    printf("RESPONSE : %s :end of response\n", response);
-    Rio_writen(connfd, response, bytes_of_content);//shoudl this be maxline? messing with this line before last arg was maxline
-    cache_insert(url, header, response, bytes_of_content);//should response size be MAXLINE?
-
-    // size_t response_size = strlen(response)+1;
-
+    // close the files; we're done with them
     Close(fd_server);
-    Close(connfd);   // close the file; we're done with it
+    Close(connfd);
     printf("finished handle_request\n\n");
 
 }
