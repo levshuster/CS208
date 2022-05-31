@@ -130,6 +130,53 @@ bool can_respond_with_cache(char *request_url, int connfd){
 }
 
 
+void parseRequest(char *buf, char* method, char* url, char* version, char* url_trim, char* resource, char *port, char*hostname){
+// parse URL for hostname, port, and filename, then open a socket on that port and hostname
+    if (3 > sscanf(buf, "%s %s %s", method, url, version)) {
+        printf("ERROR: bad scan\n");
+        return;
+    }
+    // It should determine whether the client has sent a valid HTTP request; 
+    // TODO check to make sure url has at least one . (either IP or top level domain)
+    if(!sscanf(url, "http://%s", url_trim)){//makes sure usses http protical not https turn into test later
+        printf("ERROR: bad URL read (doesn't use http)\nBad URL - %s\n", url);
+        return;
+    }  
+
+
+    // set resource
+    char* temp = strchr(url_trim, '/');
+    if (temp) {
+        strncpy(resource, temp+1, 100);
+        *temp = '\0';
+    } else {
+        printf("\nno resource specified so returned index.html\n\n");
+        strncpy(resource, "index.html", strlen("index.html")+1); //TODO : double checck this +1!!!!
+    }
+    // set port
+    temp = strchr(url_trim, ':');
+    if (temp) {
+        strncpy(port, temp+1, 100);
+        *temp = '\0';
+    } else {
+        strncpy(port, DEFAULT_PORT, strlen(DEFAULT_PORT)+1);
+    }
+    // set hostname
+    strncpy(hostname, url_trim, strlen(url_trim)+1); // for readability
+
+    printf("host: %s  |  port: %s  |  resource: %s\n", hostname, port, resource);
+}
+
+void send_request(int fd_server, char *resource, char *buf, char*hostname, char *port){
+    sprintf (buf, "GET /%s HTTP/1.0\r\n", resource); 
+    Rio_writen(fd_server, buf, strlen(buf));
+    sprintf(buf, "Host: %s:%s\r\n", hostname, port); 
+    Rio_writen(fd_server, buf, strlen(buf));
+    sprintf(buf, "\r\n"); //Accept: */*\r\n
+    Rio_writen(fd_server, buf, strlen(buf));
+    printf("sent request\n");
+}
+
 /* Implement this function for Part I
  * For Part III, you may need to change the parameter and return type of handle_request
  */
@@ -154,23 +201,11 @@ void handle_request(int connfd) { //connfd is the connection file descriptor
         return;
     }   
 
-    // parse URL for hostname, port, and filename, then open a socket on that port and hostname
-    if (3 > sscanf(buf, "%s %s %s", method, url, version)) {
-        printf("ERROR: bad scan\n");
-        return;
-    }
-
-    // It should determine whether the client has sent a valid HTTP request; 
-    // TODO check to make sure url has at least one . (either IP or top level domain)
-    if(!sscanf(url, "http://%s", url_trim)){//makes sure usses http protical not https turn into test later
-        printf("ERROR: bad URL read (doesn't use http)\nBad URL - %s\n", url);
-        return;
-    }    
+    parseRequest(buf, method, url, version, url_trim, resource, port, hostname);
 
     /* We have, as of this moment, parsed the url. 
      * From here, we just need to see if we can find it in the cache
     */
-    printf("url is %s\n", url);
     if (can_respond_with_cache(url, connfd)) {
         printf("we can respond with cache\n");
         Close(connfd);   // close the file; we're done with it
@@ -178,43 +213,15 @@ void handle_request(int connfd) { //connfd is the connection file descriptor
     }
     printf("not cached\n");
 
-    // set resource
-    char* temp = strchr(url_trim, '/');
-    if (temp) {
-        strncpy(resource, temp+1, 100);
-        *temp = '\0';
-    } else {
-        printf("\nno resource specified so returned index.html\n\n");
-	    strncpy(resource, "index.html", strlen("index.html")+1); //TODO : double checck this +1!!!!
-    }
-    // set port
-    temp = strchr(url_trim, ':');
-    if (temp) {
-        strncpy(port, temp+1, 100);
-        *temp = '\0';
-    } else {
-        strncpy(port, DEFAULT_PORT, strlen(DEFAULT_PORT)+1);
-    }
-    // set hostname
-    strncpy(hostname, url_trim, strlen(url_trim)+1); // for readability
-
-    printf("host: %s  |  port: %s  |  resource: %s\n", hostname, port, resource);
-
-
     /* Use the provided Open_clientfd function for this. 
      * It takes two strings arguments, the hostname and the port, and returns a file descriptor. */
     int fd_server = Open_clientfd(hostname, port);
+    send_request(fd_server, resource, buf, hostname, port);
+
+
     rio_t rio_server;
     // send request
-    sprintf (buf, "GET /%s HTTP/1.0\r\n", resource); 
-    Rio_writen(fd_server, buf, strlen(buf));
-    sprintf(buf, "Host: %s:%s\r\n", hostname, port); 
-    Rio_writen(fd_server, buf, strlen(buf));
-    sprintf(buf, "\r\n"); //Accept: */*\r\n
-    Rio_writen(fd_server, buf, strlen(buf));
-
-    printf("sent request\n");
-
+    
     Rio_readinitb(&rio_server, fd_server); //initalised the connection to read the request
     
     // Once a connection is established, your proxy should read the entirety of the request from the client 
