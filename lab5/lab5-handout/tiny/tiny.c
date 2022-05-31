@@ -6,6 +6,10 @@
  *   - Fixed sprintf() aliasing issue in serve_static(), and clienterror().
  */
 #include "csapp.h"
+#include <unistd.h>
+
+int SHOUDL_SLOW_DOWN = 0;
+
 
 void doit(int fd);
 void read_requesthdrs(rio_t *rp);
@@ -97,7 +101,9 @@ void doit(int fd)
 void read_requesthdrs(rio_t *rp) 
 {
     char buf[MAXLINE];
-
+    if(SHOUDL_SLOW_DOWN){
+        sleep(5);
+    }
     Rio_readlineb(rp, buf, MAXLINE);
     printf("%s", buf);
     while(strcmp(buf, "\r\n")) {          
