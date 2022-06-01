@@ -104,9 +104,9 @@ void cache_insert(char *url, char* header, char *item, size_t size) {
     newitem->header = malloc(strlen(header)+1);
     strncpy(newitem->header, header, strlen(header)+1);
     // set content
-    newitem->content = malloc(strlen(item)+1);
-    strncpy(newitem->content, item, size);
-    // memcpy(newitem->content, item, sizeof(item));
+    newitem->content = malloc(size);
+    // strncpy(newitem->content, item, size);
+    memcpy(newitem->content, item, size);
     // set size
     newitem->size = size;
     printf("\n\nthe size is set to %ld\n\n", size);
@@ -291,7 +291,10 @@ void handle_request(int connfd) { //connfd is the connection file descriptor
     Rio_readnb(&rio_server, response, bytes_of_content);
     Rio_writen(connfd, response, bytes_of_content);
 
+    // pthread_mutex_lock(&mutex);
     cache_insert(url, header, response, bytes_of_content); 
+    // pthread_mutex_unlock(&mutex);
+
     // close the files; we're done with them
     Close(fd_server);
     printf("_________finished handle_request_________\n\n");
@@ -337,9 +340,9 @@ void handle_request(int connfd) { //connfd is the connection file descriptor
 void* threadable_main(void *void_connfd){
     int connfd = (int) void_connfd;
     //sleep(1);
-    FILE *fptr;
-    fptr = fopen("connfd_after_pthread_call.txt","w");
-    fclose(fptr);
+    // FILE *fptr;
+    // fptr = fopen("connfd_after_pthread_call.txt","w");
+    // fclose(fptr);
 
     Pthread_detach(pthread_self());
     handle_request(connfd);
