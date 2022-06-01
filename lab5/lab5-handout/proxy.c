@@ -10,6 +10,9 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+#include <unistd.h> //remove for final submission just for waiting
+
+
 /* MAXLINE is 1024 bytes */
 
 char *DEFAULT_PORT = "80";
@@ -333,13 +336,13 @@ void handle_request(int connfd) { //connfd is the connection file descriptor
 
 void* threadable_main(void *void_connfd){
     int connfd = (int) void_connfd;
+    //sleep(1);
     FILE *fptr;
     fptr = fopen("connfd_after_pthread_call.txt","w");
-    fprintf(fptr,"%i",connfd);
     fclose(fptr);
 
-    handle_request(connfd);
     Pthread_detach(pthread_self());
+    handle_request(connfd);
     
     Close(connfd);
     return NULL;
@@ -367,10 +370,6 @@ int main(int argc, char **argv) {
         clientlen = sizeof(clientaddr);
         connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
         Getnameinfo((SA *)&clientaddr, clientlen, hostname, MAXLINE, port, MAXLINE, 0);
-        FILE *fptr;
-        fptr = fopen("connfd_before_pthread_call.txt","w");
-        fprintf(fptr,"%i",connfd);
-        fclose(fptr);
 
         // handle_request(connfd);
         Pthread_create(&threadID, NULL, threadable_main, (void *)connfd);
@@ -378,5 +377,4 @@ int main(int argc, char **argv) {
 
     cache_free();
     return 0;
-    exit(0); //do we need this?
 }
