@@ -8,6 +8,7 @@
 
 #include "csapp.h"
 #include <stdbool.h>
+#include <stdio.h>
 
 /* MAXLINE is 1024 bytes */
 
@@ -46,12 +47,15 @@ void cache_print() {
 
 /* initialize the global cache variable (allocate memory and initialize fields) */
 void cache_init() {
+    // pthread_mutex_lock(&mutex);
     // sem_init(&mutex, 0, 1); //figure out what this line does
     printf("init created\n");
     cache = (cache_t*) malloc(sizeof(cache_t));
     cache->total_size = 0;
     cache->head = NULL;
     printf("cache value is %p", cache);
+    // pthread_mutex_unlock(&mutex);
+
 
 }
 
@@ -103,7 +107,8 @@ void cache_insert(char *url, char* header, char *item, size_t size) {
     // set size
     newitem->size = size;
     printf("\n\nthe size is set to %ld\n\n", size);
-
+    
+    pthread_mutex_lock(&mutex);
     /* If it will be the first item, set its next item to NULL; otherwise insert normally */
     if (cache->total_size == 0) {
         cache->head = newitem;
@@ -114,6 +119,7 @@ void cache_insert(char *url, char* header, char *item, size_t size) {
         newitem->next = old_first_item;
     }
     cache->total_size++; // one item had been successfully inserted
+    pthread_mutex_unlock(&mutex);
 }
 
 bool can_respond_with_cache(char *request_url, int connfd){
@@ -211,13 +217,13 @@ void handle_request(int connfd) { //connfd is the connection file descriptor
     /* We have, as of this moment, parsed the url. 
      * From here, we just need to see if we can find it in the cache
     */
-    pthread_mutex_lock(&mutex);
+    // pthread_mutex_lock(&mutex);
     if (can_respond_with_cache(url, connfd)) {
         printf("we can respond with cache\n");
         // Close(connfd);   // close the file; we're done with it
         return;
     }
-    pthread_mutex_unlock(&mutex);
+    // pthread_mutex_unlock(&mutex);
     printf("not cached\n");
 
     /* Use the provided Open_clientfd function for this. 
@@ -282,22 +288,66 @@ void handle_request(int connfd) { //connfd is the connection file descriptor
     Rio_readnb(&rio_server, response, bytes_of_content);
     Rio_writen(connfd, response, bytes_of_content);
 
-    pthread_mutex_lock(&mutex);
     cache_insert(url, header, response, bytes_of_content); 
-    pthread_mutex_unlock(&mutex);
     // close the files; we're done with them
     Close(fd_server);
-    // Close(connfd);
     printf("_________finished handle_request_________\n\n");
 
 }
 
-// void sigchld_handler(int sig)
-// { 
-//     while (waitpid(-1, 0, WNOHANG) > 0)
-//         ;
-//     return;
+
+
+// int main(int argc, char **argv) {
+//     int listenfd, connfd;
+//     char hostname[MAXLINE], port[MAXLINE];
+//     socklen_t clientlen;
+//     struct sockaddr_storage clientaddr;
+//     cache_init();
+
+
+//     /* Check command line args */
+//     if (argc != 2) {
+//         fprintf(stderr, "usage: %s <port>\n", argv[0]);
+//         exit(1);
+//     }
+    
+//     listenfd = Open_listenfd(argv[1]);
+//     while (1) {
+//         clientlen = sizeof(clientaddr);
+//         connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
+//         Getnameinfo((SA *)&clientaddr, clientlen, hostname, MAXLINE,
+//                     port, MAXLINE, 0);
+//         printf("Accepted connection from (%s, %s)\n", hostname, port);
+
+//         // For Part III, replace this with code that creates and detaches a thread
+//         // or otherwise handles the request concurrently
+//         handle_request(connfd);
+//         close(connfd);
+//     }
+//     cache_free();
+//     return 0;
 // }
+
+
+
+
+void* threadable_main(void *void_connfd){
+    int connfd = (int) void_connfd;
+    FILE *fptr;
+    fptr = fopen("connfd_after_pthread_call.txt","w");
+    fprintf(fptr,"%i",connfd);
+    fclose(fptr);
+
+    handle_request(connfd);
+    Pthread_detach(pthread_self());
+    
+    Close(connfd);
+    return NULL;
+}
+
+// concurency attmept 2:
+//todo figure out why one is not identical in normal score (get to 4/40)
+//todo determin if cashe needs to be on the heap to better share resources
 int main(int argc, char **argv) {
     int listenfd, connfd;
     char hostname[MAXLINE], port[MAXLINE];
@@ -305,98 +355,28 @@ int main(int argc, char **argv) {
     struct sockaddr_storage clientaddr;
     cache_init();
 
-
     /* Check command line args */
     if (argc != 2) {
         fprintf(stderr, "usage: %s <port>\n", argv[0]);
         exit(1);
     }
-    
+
+    pthread_t threadID;
     listenfd = Open_listenfd(argv[1]);
     while (1) {
         clientlen = sizeof(clientaddr);
         connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
-        Getnameinfo((SA *)&clientaddr, clientlen, hostname, MAXLINE,
-                    port, MAXLINE, 0);
-        printf("Accepted connection from (%s, %s)\n", hostname, port);
+        Getnameinfo((SA *)&clientaddr, clientlen, hostname, MAXLINE, port, MAXLINE, 0);
+        FILE *fptr;
+        fptr = fopen("connfd_before_pthread_call.txt","w");
+        fprintf(fptr,"%i",connfd);
+        fclose(fptr);
 
-        // For Part III, replace this with code that creates and detaches a thread
-        // or otherwise handles the request concurrently
-        handle_request(connfd);
+        // handle_request(connfd);
+        Pthread_create(&threadID, NULL, threadable_main, (void *)connfd);
     }
+
     cache_free();
+    return 0;
+    exit(0); //do we need this?
 }
-
-
-//concurency attmept:
-// int main(int argc, char **argv) {
-//     int listenfd, connfd;
-//     char hostname[MAXLINE], port[MAXLINE];
-//     socklen_t clientlen;
-//     struct sockaddr_storage clientaddr;
-//     cache_init();
-
-//     /* Check command line args */
-//     if (argc != 2) {
-//         fprintf(stderr, "usage: %s <port>\n", argv[0]);
-//         exit(1);
-//     }
-    
-//     Signal(SIGCHLD, sigchld_handler); //new line
-
-//     listenfd = Open_listenfd(argv[1]);
-//     while (1) {
-//         clientlen = sizeof(clientaddr);
-//         connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
-//         if(Fork() == 0){ // newline
-//             Close(listenfd);
-//             printf("Accepted connection from (%s, %s)\n", hostname, port);
-//             Getnameinfo((SA *)&clientaddr, clientlen, hostname, MAXLINE, port, MAXLINE, 0);
-//             // For Part III, replace this with code that creates and detaches a thread
-//             // or otherwise handles the request concurrently
-//             handle_request(connfd);
-//             Close(connfd);   /* Child closes connection with client */
-//             exit(0);  
-//         }
-
-//     }
-//     cache_free();
-// }
-
-void* threadable_main(void *void_connfd){ //change to int later
-    int connfd = (int) void_connfd;
-    // Pthread_detach(pthread_self());
-    handle_request(connfd);
-    Close(connfd);
-    return NULL;
-}
-
-// concurency attmept 2:
-// int main(int argc, char **argv) {
-//     int listenfd, connfd;
-//     char hostname[MAXLINE], port[MAXLINE];
-//     socklen_t clientlen;
-//     struct sockaddr_storage clientaddr;
-//     cache_init();
-
-//     /* Check command line args */
-//     if (argc != 2) {
-//         fprintf(stderr, "usage: %s <port>\n", argv[0]);
-//         exit(1);
-//     }
-    
-//     pthread_t threadID;
-//     listenfd = Open_listenfd(argv[1]);
-//     while (1) {
-//         clientlen = sizeof(clientaddr);
-//         connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
-//         Getnameinfo((SA *)&clientaddr, clientlen, hostname, MAXLINE, port, MAXLINE, 0);
-//         Pthread_create(&threadID, NULL, threadable_main, (void *)connfd);
-//         pthread_join(threadID, NULL);
-
-//     }
-//     cache_free();
-//     return 0;
-//     // exit(0); //do we need this?
-// }
-

@@ -8,7 +8,7 @@
 #include "csapp.h"
 #include <unistd.h>
 
-int SHOUDL_SLOW_DOWN = 0;
+int SHOULD_SLOW_DOWN = 0;
 
 
 void doit(int fd);
@@ -101,7 +101,7 @@ void doit(int fd)
 void read_requesthdrs(rio_t *rp) 
 {
     char buf[MAXLINE];
-    if(SHOUDL_SLOW_DOWN){
+    if(SHOULD_SLOW_DOWN){
         sleep(5);
     }
     Rio_readlineb(rp, buf, MAXLINE);

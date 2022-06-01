@@ -263,12 +263,15 @@ do
 
     # Compare the two files
     echo "   Comparing the two files"
+    diff ${PROXY_DIR}/${file} ${NOPROXY_DIR}/${file} 
     diff -q ${PROXY_DIR}/${file} ${NOPROXY_DIR}/${file} &> /dev/null
     if [ $? -eq 0 ]; then
         numSucceeded=`expr ${numSucceeded} + 1`
         echo "   Success: Files are identical."
     else
         echo "   Failure: Files differ."
+        # head ${PROXY_DIR}/${file}
+        # head ${NOPROXY_DIR}/${file}
     fi
 done
 
