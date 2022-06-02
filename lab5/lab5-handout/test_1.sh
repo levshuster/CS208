@@ -1,19 +1,20 @@
 #!/bin/bash
 #
-# driver.sh - This is a simple autograder for the Proxy Lab. It does
-#     basic sanity checks that determine whether or not the code
-#     behaves like a concurrent caching proxy. 
+# code derived from driver.sh by David O'Hallaron, for about the author 
+# and rights view the head of driver.sh
 #
-#     David O'Hallaron, Carnegie Mellon University
-#     updated: 2/8/2016
+# test_1.sh - This is exxtention to the simple autograder for the Proxy Lab. It does
+#     basic spotchecks that determine whether or not the code
+#     behaves well in edge casses related to bad request, shorcomings in tiny servers
+#     and consistatly avoids data races 
+#
+#     adapted from David O'Hallaron, Carnegie Mellon University, 2/8/2016
 # 
-#     usage: ./driver.sh
+#     usage: ./test_1.sh
 # 
 
 # Point values
-MAX_BASIC=40
-MAX_CONCURRENCY=15
-MAX_CACHE=15
+MAX_SCORE=8
 
 # Various constants
 HOME_DIR=`pwd`
@@ -24,6 +25,12 @@ MAX_RAND=63000
 PORT_START=1024
 PORT_MAX=65000
 MAX_PORT_TRIES=10
+
+BASIC_LIST="home.html
+            csapp.c
+            tiny.c
+            godzilla.jpg
+            tiny"
 
 
 #####
@@ -208,9 +215,9 @@ trap 'echo "Timeout waiting for the server to grab the port reserved for it"; ki
 # Fact: tiny.c web server can only handle small files
 # Fact: one proxy.c server can communicate with many tiny.c servers
 # IF proxy.c sends a request to a tiny server that break the tiny server
-# THEN THE DEFAULT BEHAVIOR crashes the proxy 
+# THEN THE DEFAULT BEHAVIOR crashes the proxy server
 # THIS TEST CHECKS to see if the proxy continues to work after a tiny server fails
-# TESTED BY sending a request to a file (Cat.jpg) that is so big that the tiny server crashes
+# TESTED BY sending a request for a file (Cat.jpg) that is so big that the tiny server crashes
 # then the test file spins up a second tiny server to check if the proxy is still working 
 # even after one of the servers which the proxy is communicating with goes down
 echo ""
@@ -218,6 +225,9 @@ echo "*** Checking to make sure a broken tiny server doesn't crash the proxy  **
 
 
 # copy Cat.jpg into the tiny/ directory so there is a resource too large to tiny to work with
+# (one of the resorces we submited for grading is a 25mb file called Cat.jpg
+# like all of the files we submit, it can be placed into the sime folder as proxy.c)
+# here we make a copy of Cat.jpg to the correct place so the tiny server can easily acsess it
 cp Cat.jpg tiny/Cat.jpg
 
 
@@ -266,18 +276,13 @@ download_proxy $NOPROXY_DIR "csapp.c" "http://localhost:${tiny_port}/csapp.c" "h
 # file in the tiny directory
 diff -q ./tiny/csapp.c ${NOPROXY_DIR}/csapp.c  &> /dev/null
 if [ $? -eq 0 ]; then
-    cacheScore=${MAX_CACHE}
+    cacheScore=${MAX_SCORE}
     echo "Success: proxy was able to gracfully notify the user that they requested too large of a file without crashing"
 else
     cacheScore=0
     echo "Failure: requesting too large of a file caused the proxy to crash"
 fi
 
-# for file in ${CACHE_LIST}
-# do
-#     echo "Fetching ./tiny/${file} into ${PROXY_DIR} using the proxy"
-#     download_proxy $PROXY_DIR ${file} "http://localhost:${tiny_port}/${file}" "http://localhost:${proxy_port}"
-# done
 
 # Kill Tiny
 echo "Killing tiny"
@@ -291,7 +296,9 @@ echo "Killing proxy"
 kill $proxy_pid 2> /dev/null
 wait $proxy_pid 2> /dev/null
 
-echo "Response to a broken tiny server score: $cacheScore/15"
+echo "Response to a broken tiny server score: $cacheScore/8"
+echo
+echo
 
 
 
@@ -299,7 +306,7 @@ echo "Response to a broken tiny server score: $cacheScore/15"
 # Fact: if the user doesn't specify the protical proxy should assume they want http
 # Fact: by defualt if the protical is not specified the proxy breaks and sends a bad request
 # THIS TEST CHECKS to see if the proxy can catch when no protical is specified and send a valid request
-# TESTED BY sending a request which doesn't conatain http then second a second standard request and compairing the two 
+# TESTED BY sending a request which doesn't conatain http then a second, standard request and compairing the two 
 echo ""
 echo "*** Checking to make sure bad request from a client doesn't break the proxy server  ***"
 
@@ -338,18 +345,13 @@ download_proxy $NOPROXY_DIR "godzilla.jpg" "http://localhost:${tiny_port}/godzil
 # file in the tiny directory
 diff -q ./tiny/godzilla.jpg ${NOPROXY_DIR}/godzilla.jpg  &> /dev/null
 if [ $? -eq 0 ]; then
-    cacheScore=${MAX_CACHE}
+    cacheScore=${MAX_SCORE}
     echo "Success: proxy was able to add an http specifier to its request when the client didn't specify"
 else
     cacheScore=0
     echo "Failure: proxy was unable to add an http specifier to its request when the client didn't specify"
 fi
 
-# for file in ${CACHE_LIST}
-# do
-#     echo "Fetching ./tiny/${file} into ${PROXY_DIR} using the proxy"
-#     download_proxy $PROXY_DIR ${file} "http://localhost:${tiny_port}/${file}" "http://localhost:${proxy_port}"
-# done
 
 # Kill Tiny
 echo "Killing tiny"
@@ -363,5 +365,151 @@ echo "Killing proxy"
 kill $proxy_pid 2> /dev/null
 wait $proxy_pid 2> /dev/null
 
-echo "appliity handle request when protical not specified score: $cacheScore/15"
+echo "Aptly handle request when protocal not specified: $cacheScore/8"
+echo
+echo
 
+
+
+#### 
+# Fact: it may be tempting to cache and compair cashes without considering port number
+# Fact: this would cause issues because one computer can host multiple servers
+# FOR EXAMPLE: the sampe computer might host a personal website at port 1000 and a buisness site on port 1100
+#               in this example we wouldn't want the localhost:1000/home.html to return the same content as 
+#               localhost:1100/home.html thus ports must be considered when testing cashing
+# THIS TEST CHECKS to make sure the same requests to different ports do not return the same values
+# THIS IS ACCOPLISHED BY starting a single tiny server, making a request, then making the same request at another port
+#               this should fail because the cashe shouldn't be triggered and there is no server at this seccond port
+#               thus this test makes sure that the program correctly fails
+# TESTED BY sending a request which doesn't conatain http then a second, standard request and compairing the two 
+echo ""
+echo "*** Checking to make sure caching correccty differentuates between ports  ***"
+
+
+
+# Run the Tiny Web server
+tiny_port=$(free_port)
+echo "Starting tiny on port ${tiny_port}"
+cd ./tiny
+./tiny ${tiny_port} &> /dev/null &
+tiny_pid=$!
+cd ${HOME_DIR}
+
+# Wait for tiny to start in earnest
+wait_for_port_use "${tiny_port}"
+
+# Run the proxy
+proxy_port=$(free_port)
+echo "Starting proxy on port ${proxy_port}"
+./proxy ${proxy_port} &> /dev/null &
+proxy_pid=$!
+
+# Wait for the proxy to start in earnest
+wait_for_port_use "${proxy_port}"
+
+# Make a request to proxy
+clear_dirs
+
+# requesting godzilla to addit to the cash
+download_proxy $PROXY_DIR "godzilla.jpg" "localhost:${tiny_port}/godzilla.jpg" "http://localhost:${proxy_port}" 
+
+
+#requesting the same addres at the same domain but different port
+unused_port=$(free_port)
+
+download_proxy $PROXY_DIR "godzilla.jpg" "http://localhost:${unused_port}/godzilla.jpg" "http://localhost:${proxy_port}" 
+# proxy should now be down (unable to fufuill request)
+
+#get control
+download_proxy $NOPROXY_DIR "godzilla.jpg" "http://localhost:${tiny_port}/godzilla.jpg" "http://localhost:${proxy_port}" 
+
+
+# See if the proxy fetch succeeded by comparing it with the original
+# file in the tiny directory
+diff -q ./tiny/godzilla.jpg ${NOPROXY_DIR}/godzilla.jpg  &> /dev/null
+if [ $? -eq 0 ]; then
+    cacheScore=0
+    echo "Failure: proxy incorrectly found a cashed item dispite request being at a different port"
+
+else
+    cacheScore=${MAX_SCORE}
+    echo "Success: proxy was able to correctly identify that second request wasn't in the cashe"
+
+fi
+
+
+# Kill Tiny
+echo "Killing tiny"
+kill $tiny_pid 2> /dev/null
+wait $tiny_pid 2> /dev/null
+
+
+
+# Kill the proxy
+echo "Killing proxy"
+kill $proxy_pid 2> /dev/null
+wait $proxy_pid 2> /dev/null
+
+echo "Correctly differentuated between caches of simlar requests: $cacheScore/8"
+echo
+echo
+
+
+
+
+#### 
+# Fact: when we first got multithreading working, we were getting a datarace
+# Fact: the way we initialy fixed it is by putting arbirary code at the start of each thread which happened
+#       to get the threads far enough out of sink to consistnatly earn a perfect score
+# THIS TEST CHECKS to make sure dataraces aren't being avoided by chance by throwing a large numer
+#                  of similar request at the same proxy to garandee a datarace would be evident if one was present
+
+# Run the Tiny Web server
+tiny_port=$(free_port)
+echo "Starting tiny on port ${tiny_port}"
+cd ./tiny
+./tiny ${tiny_port} &> /dev/null &
+tiny_pid=$!
+cd ${HOME_DIR}
+
+# Wait for tiny to start in earnest
+wait_for_port_use "${tiny_port}"
+
+# Run the proxy
+proxy_port=$(free_port)
+echo "Starting proxy on port ${proxy_port}"
+./proxy ${proxy_port} &> /dev/null &
+proxy_pid=$!
+
+# Wait for the proxy to start in earnest
+wait_for_port_use "${proxy_port}"
+clear_dirs
+
+echo "Trying to fetch multiple files at the same time from the tiny server."
+for i in {1...24}
+do
+download_proxy $PROXY_DIR "godzilla.jpg" "http://localhost:${tiny_port}/godzilla.jpg" "http://localhost:${proxy_port}" 
+download_proxy $PROXY_DIR "csapp.c" "http://localhost:${tiny_port}/csapp.c" "http://localhost:${proxy_port}" 
+done
+
+
+echo "Retrieving and comparing the files to ensure the proxy hasn't broken"
+download_noproxy $NOPROXY_DIR "csapp.c" "http://localhost:${tiny_port}/csapp.c" "http://localhost:${proxy_port}" 
+# See if the proxy fetch succeeded by comparing it with the original
+# file in the tiny directory
+diff -q ./tiny/csapp.c ${NOPROXY_DIR}/csapp.c  &> /dev/null
+if [ $? -eq 0 ]; then
+    download_noproxy $NOPROXY_DIR "godzilla.jpg" "http://localhost:${tiny_port}/godzilla.jpg" "http://localhost:${proxy_port}" 
+    diff -q ./tiny/godzilla.jpg ${NOPROXY_DIR}/godzilla.jpg  &> /dev/null
+    if [ $? -eq 0 ]; then
+        echo "Success - proxy still working after possible race condition: 8/8"
+    else
+        cacheScore=0
+        echo "Failure - proxy not working after possible race condition: 0/8"
+    fi
+else
+    cacheScore=0
+    echo "Failure - proxy not working after possible race condition: 0/8"
+fi
+
+exit

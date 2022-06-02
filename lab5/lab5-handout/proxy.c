@@ -33,7 +33,7 @@ size_t MAX_ENTRY_SIZE = 400000;
 
 
 
-/* Struct used to hold all pertinent info to be cached  */
+/* Struct used to hold all pertinent info to be cached */
 typedef struct cache_entry {
     char *url;
     char *header;
@@ -181,7 +181,8 @@ bool can_respond_with_cache(char *request_url, int connfd){
 /* CALLED ONLY BY handle_request()
  * parses the request sent to handle_request()
  * ARGUMENTS: 
-            * PREFACE: all of these are to be set during the function. At the start they are only pointers to empty data fields
+            * PREFACE: all of these are to be set during the function. 
+            * At the start they are only pointers to empty data fields.
             * char* buf        the buffer for string movement
             * char* method     the method of the HTTP request ("GET")
             * char* url        the full url of the request (port/resource included)
@@ -191,7 +192,8 @@ bool can_respond_with_cache(char *request_url, int connfd){
             * char* port       the port upon which the request was made
             * char* hostname   same as url_trim at the end, host name
 */
-void parse_request(char *buf, char* method, char* url, char* version, char* url_trim, char* resource, char *port, char*hostname){
+void parse_request(char *buf, char* method, char* url, char* version, 
+                   char* url_trim, char* resource, char *port, char*hostname){
     // parse URL for hostname, port, and filename, then open a socket on that port and hostname
 
     if (3 != sscanf(buf, "%s %s %s", method, url, version)) {
@@ -229,7 +231,8 @@ void parse_request(char *buf, char* method, char* url, char* version, char* url_
 /* CALLED ONLY BY handle_request()
  * send the request to the end server
  * ARGUMENTS: 
-            * PREFACE: all of these are to be set during the function. At the start they are only pointers to empty data fields
+            * PREFACE: all of these are to be set during the function. 
+            * At the start they are only pointers to empty data fields
             * char* buf        the buffer for string movement
             * char* hostname   same as url_trim at the end, host name
             * char* port       the port upon which the request was made
@@ -249,19 +252,20 @@ void send_request(int fd_server, char *resource, char *buf, char*hostname, char 
 
 /* Handles requests sent by the client.
  * This function parses the request, then it tries to use its cache to resolve it.
- * If it cannot, it forwards the request to the server and then forwards the response back to the client.
+ * It forwards the request to the server and then forwards the response back to the client.
  * Then, it adds the item to the cache.
  * ARGUMENT: int connfd - the client's file descriptor
  */
 void handle_request(int connfd) {
+    // Declaring variables to be passed into subfunctions
     char buf[MAXLINE], method[MAXLINE], url[MAXLINE], version[MAXLINE], url_trim[MAXLINE]; 
     char hostname[MAXLINE], port[MAXLINE], resource[MAXLINE];
-
 
     /* Read request line and headers */
     rio_t rio;
     Rio_readinitb(&rio, connfd); //initalised the connection to read the request
-    if (!Rio_readlineb(&rio, buf, MAXLINE)){     // If we cannot read from the client, we cannot proceed. 
+    // If we cannot read from the client, we cannot proceed
+    if (!Rio_readlineb(&rio, buf, MAXLINE)){ 
         printf("ERROR: Unable to make a connection using the given fd\n");
         return;
     }   
@@ -329,7 +333,6 @@ void handle_request(int connfd) {
     char *size_ptr;
     size_t bytes_of_content= strtol(size, &size_ptr, 10);
 
-    // This check prevents our proxy from crashing in addition to the tiny server upon a request that is too large.
     // This allows us to keep running even if the server crashed.
     if(bytes_of_content > MAX_ENTRY_SIZE){
         printf("requested package too large for tiny server, please request a smaller file\n");
@@ -388,6 +391,7 @@ int main(int argc, char **argv) {
     pthread_t threadID;
     listenfd = Open_listenfd(argv[1]);
     while (1) {
+        // Accept request, split off a thread, and handle the request through threadable_main()
         clientlen = sizeof(clientaddr);
         connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
         Getnameinfo((SA *)&clientaddr, clientlen, hostname, MAXLINE, port, MAXLINE, 0);
