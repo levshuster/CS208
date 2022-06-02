@@ -165,15 +165,15 @@ void cache_insert(char *url, char* header, char *item, size_t size) {
          * false - if we could not. This returns us to a non-cached version of handle_request()
 */
 bool can_respond_with_cache(char *request_url, int connfd){
-    /* if we can't find an item, return false */
     cache_entry_t* entry = (cache_entry_t*) cache_lookup(request_url);
+    
+    /* if we can't find an item, return false */
     if (!entry) {
         return false;
     }
+
     /* Otherwise, write to the connfd and return true */
-    // printf("\n\nsize of entry content: %ld\n", entry->size);
-    // printf("header is %s\n", entry->header);
-    Rio_writen(connfd, entry->header, strlen(entry->header)); // strlen(entry->header)+1
+    Rio_writen(connfd, entry->header, strlen(entry->header));
     Rio_writen(connfd, entry->content, entry->size);
     return true;
 }
@@ -192,14 +192,14 @@ bool can_respond_with_cache(char *request_url, int connfd){
             * char* hostname   same as url_trim at the end, host name
 */
 void parse_request(char *buf, char* method, char* url, char* version, char* url_trim, char* resource, char *port, char*hostname){
-// parse URL for hostname, port, and filename, then open a socket on that port and hostname
+    // parse URL for hostname, port, and filename, then open a socket on that port and hostname
+
     if (3 != sscanf(buf, "%s %s %s", method, url, version)) {
         printf("ERROR: bad scan\n");
         return;
     }
-    // It should determine whether the client has sent a valid HTTP request; 
-    // TODO check to make sure url has at least one . (either IP or top level domain)
-    if(!sscanf(url, "http://%s", url_trim)){ //makes sure usses http protical not https turn into test later
+
+    if(!sscanf(url, "http://%s", url_trim)){
         strncpy(url_trim, url, strlen(url)+1);
     }  
 
@@ -209,9 +209,9 @@ void parse_request(char *buf, char* method, char* url, char* version, char* url_
         strncpy(resource, temp+1, 100);
         *temp = '\0';
     } else {
-        printf("\nno resource specified so returned index.html\n\n");
-        strncpy(resource, "index.html", strlen("index.html")+1); //TODO : double checck this +1!!!!
+        strncpy(resource, "index.html", strlen("index.html")+1); //sets defualt resource
     }
+
     // set port
     temp = strchr(url_trim, ':');
     if (temp) {
@@ -220,20 +220,31 @@ void parse_request(char *buf, char* method, char* url, char* version, char* url_
     } else {
         strncpy(port, DEFAULT_PORT, strlen(DEFAULT_PORT)+1);
     }
+
     // set hostname
     strncpy(hostname, url_trim, strlen(url_trim)+1); // for readability
-
-    printf("host: %s  |  port: %s  |  resource: %s\n", hostname, port, resource);
 }
 
+
+/* CALLED ONLY BY handle_request()
+ * send the request to the end server
+ * ARGUMENTS: 
+            * PREFACE: all of these are to be set during the function. At the start they are only pointers to empty data fields
+            * char* buf        the buffer for string movement
+            * char* hostname   same as url_trim at the end, host name
+            * char* port       the port upon which the request was made
+            * char* resource   the name of the requested file
+            * int   fd_server  the file descripter to the end server
+ */
 void send_request(int fd_server, char *resource, char *buf, char*hostname, char *port){
     sprintf (buf, "GET /%s HTTP/1.0\r\n", resource); 
     Rio_writen(fd_server, buf, strlen(buf));
+
     sprintf(buf, "Host: %s:%s\r\n", hostname, port); 
     Rio_writen(fd_server, buf, strlen(buf));
-    sprintf(buf, "\r\n"); //Accept: */*\r\n
+
+    sprintf(buf, "\r\n");
     Rio_writen(fd_server, buf, strlen(buf));
-    printf("sent request\n");
 }
 
 /* Handles requests sent by the client.
@@ -242,19 +253,15 @@ void send_request(int fd_server, char *resource, char *buf, char*hostname, char 
  * Then, it adds the item to the cache.
  * ARGUMENT: int connfd - the client's file descriptor
  */
-void handle_request(int connfd) { //connfd is the connection file descriptor
-
-    // read and parse request
-    // the initial part of the doit function in tiny/tiny.c
+void handle_request(int connfd) {
     char buf[MAXLINE], method[MAXLINE], url[MAXLINE], version[MAXLINE], url_trim[MAXLINE]; 
     char hostname[MAXLINE], port[MAXLINE], resource[MAXLINE];
+
 
     /* Read request line and headers */
     rio_t rio;
     Rio_readinitb(&rio, connfd); //initalised the connection to read the request
-
-    // If we cannot read from the client, we cannot proceed. 
-    if (!Rio_readlineb(&rio, buf, MAXLINE)){
+    if (!Rio_readlineb(&rio, buf, MAXLINE)){     // If we cannot read from the client, we cannot proceed. 
         printf("ERROR: Unable to make a connection using the given fd\n");
         return;
     }   
@@ -264,10 +271,8 @@ void handle_request(int connfd) { //connfd is the connection file descriptor
     // We have parsed the url that would match the cache. 
     // From here, we just need to see if we can find it in the cache.
     if (can_respond_with_cache(url, connfd)) {
-        printf("we can respond with cache\n");
         return;
     }
-    printf("not cached\n");
 
     // Forward the request to the server
     int fd_server;
@@ -275,8 +280,6 @@ void handle_request(int connfd) { //connfd is the connection file descriptor
         printf("ERROR: Invalid Port\n");
         return;
     }
-    
-
     
     send_request(fd_server, resource, buf, hostname, port);
 
@@ -317,7 +320,7 @@ void handle_request(int connfd) { //connfd is the connection file descriptor
     Rio_writen(connfd, buf, n);
     strcat(header, buf);
 
-    if(!sscanf(size, "Content-length: %s", size)){ //makes sure usses http protical not https turn into test later
+    if(!sscanf(size, "Content-length: %s", size)){
         printf("ERROR: unable to read size\n");
         return;
     }
@@ -340,11 +343,17 @@ void handle_request(int connfd) { //connfd is the connection file descriptor
 
     cache_insert(url, header, response, bytes_of_content); 
 
-    // close the server connection, we're done with it.
     Close(fd_server);
 }
 
-
+/* this is the function called when a new thread is created, it is passed  
+ * an int treated as a void* which acts as the file descripter for the newly made 
+ * connection between the proxy and the client
+ *
+ * this fuction simply calls handle_request and specifies multithreaded behavior
+ * because this function is called when creating a new thread it must return a void*
+ * this function will always return 0 because error handeling is elsewhere
+ */
 void* threadable_main(void *void_connfd){
     int connfd = (int) void_connfd;
 
@@ -355,7 +364,12 @@ void* threadable_main(void *void_connfd){
     return NULL;
 }
 
-// concurency attmept 2:
+/* this main function calls to initialise and close cache, listens on a listening port 
+ * for a new client request and hands it over to a new thread it creates
+ * this function assumes that a port number is specified for it to act as a listening port
+ * this functon returns 1 if forced to exit beccause there are an incorrect number of 
+ * command line arguments and returns 0 otherwise
+ */
 int main(int argc, char **argv) {
     int listenfd, connfd;
     char hostname[MAXLINE], port[MAXLINE];
@@ -377,8 +391,6 @@ int main(int argc, char **argv) {
         clientlen = sizeof(clientaddr);
         connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
         Getnameinfo((SA *)&clientaddr, clientlen, hostname, MAXLINE, port, MAXLINE, 0);
-        
-        
         Pthread_create(&threadID, NULL, threadable_main, (void *)connfd);
     }
 
